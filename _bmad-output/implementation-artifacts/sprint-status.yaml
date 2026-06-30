@@ -1,0 +1,38 @@
+# generated: 2026-06-17
+# last_updated: 2026-06-27
+# project: erp-ari-hv
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: {project-root}/_bmad-output/implementation-artifacts
+
+development_status:
+  # Épica 1: Autenticación Robusta (Nueva Planificación)
+  epic-1: done
+  1-1-validacion-de-credenciales-y-resolucion-de-tenant: done
+  1-2-emision-de-tokens-jwt-duales: done
+  1-3-proteccion-contra-fuerza-bruta-y-rate-limiting: done
+
+  # Épica 2: Control de Acceso y UX
+  epic-2: done
+  2-1-implementacion-de-feature-flags-y-rbac: done
+  2-2-interfaz-de-usuario-para-login-y-feedback: done
+  2-3-sidebar-dinamico-y-banner-de-sandbox: done
+  2-4-registro-real-de-empresa-y-propietario: done
+  2-5-recuperacion-de-contrasena: done
+  2-6-gestion-completa-de-sesiones: done
+
+  # Épica 3: Inventario de Doble Entrada
+  epic-3: done
+  3-1-creacion-de-productos-y-stock-inicial: done
+  3-2-registro-de-compras-y-facturas-proveedor: done
+  3-3-descuento-automatico-y-ventas-negativo: done
+  3-4-reglas-ciclo-vida-y-bloqueo-productos: done
+  3-5-consulta-de-catalogo-con-stock-dinamico: done
+  3-6-historial-de-compras-y-detalles-factura: done
+  3-7-historial-de-ventas-y-justificaciones: done
+  3-8-swagger-bearer-auth: done
+
+  # Historias Previas (Mantenidas para referencia)
+  4-1-interfaz-de-venta-y-carrito: ready-for-dev
+  5-1-jerarquia-de-ubicaciones-y-mapa-visual: ready-for-dev
+  6-1-motor-de-formulas-legales-dinamicas: ready-for-dev

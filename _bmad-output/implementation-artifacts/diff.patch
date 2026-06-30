@@ -1,0 +1,422 @@
+diff --git a/backend/src/application/use-cases/inventory/bulk-upload-products.use-case.ts b/backend/src/application/use-cases/inventory/bulk-upload-products.use-case.ts
+new file mode 100644
+index 0000000..8dcf304
+--- /dev/null
++++ b/backend/src/application/use-cases/inventory/bulk-upload-products.use-case.ts
+@@ -0,0 +1,66 @@
++import { Injectable } from '@nestjs/common';
++import { CreateProductDto } from './create-product.dto';
++import { ProductRepository } from '../../../infrastructure/persistence/postgresql/repositories/product.repository';
++import { StockMoveRepository } from '../../../infrastructure/persistence/postgresql/repositories/stock-move.repository';
++import { StockMoveType } from '../../../domain/entities/stock-move.entity';
++import { Product } from '../../../domain/entities/product.entity';
++
++@Injectable()
++export class BulkUploadProductsUseCase {
++  constructor(
++    private readonly productRepo: ProductRepository,
++    private readonly stockMoveRepo: StockMoveRepository,
++  ) {}
++
++  /**
++   * execute
++   * Purpose: Handle CSV data and create initial journaling (T3.1.3 & T3.1.4).
++   */
++  async execute(tenantId: string, products: CreateProductDto[]) {
++    const results = {
++      success: [],
++      errors: [],
++    };
++
++    // Optimization: find all products for this tenant once
++    const tenantProducts = await this.productRepo.findByTenant(tenantId);
++    const existingSkus = new Set(tenantProducts.map(p => p.sku));
++
++    for (const [index, productData] of products.entries()) {
++      try {
++        // 1. SKU Uniqueness Validation (AC: #3)
++        if (existingSkus.has(productData.sku)) {
++          throw new Error(`SKU already exists: ${productData.sku}`);
++        }
++
++        // 2. Persist Product (AC: #1)
++        const product = await this.productRepo.save(new Product({
++          tenant_id: tenantId,
++          sku: productData.sku,
++          name: productData.name,
++          description: productData.sku, // Placeholder or use description if in DTO
++          cost_usd: productData.costUsd,
++          price_usd: productData.priceUsd,
++          tax_rate: productData.taxRate,
++          current_stock: productData.initialStock,
++        }));
++
++        // 3. Record Initial Stock Movement (AC: #2)
++        const move = await this.stockMoveRepo.save({
++          tenant_id: tenantId,
++          product_id: product.id,
++          type: StockMoveType.INITIAL_LOAD,
++          quantity: productData.initialStock,
++          cost_at_time: productData.costUsd,
++        } as any);
++
++        results.success.push({ sku: productData.sku, productId: product.id, moveId: move.id });
++        existingSkus.add(productData.sku);
++      } catch (error) {
++        results.errors.push({ line: index + 1, sku: productData.sku, error: error.message });
++      }
++    }
++
++    return results;
++  }
++}
+diff --git a/backend/src/application/use-cases/inventory/tests/bulk-upload-products.use-case.spec.ts b/backend/src/application/use-cases/inventory/tests/bulk-upload-products.use-case.spec.ts
+new file mode 100644
+index 0000000..8a25085
+--- /dev/null
++++ b/backend/src/application/use-cases/inventory/tests/bulk-upload-products.use-case.spec.ts
+@@ -0,0 +1,97 @@
++import { Test, TestingModule } from '@nestjs/testing';
++import { BulkUploadProductsUseCase } from '../bulk-upload-products.use-case';
++import { ProductRepository } from '../../../../infrastructure/persistence/postgresql/repositories/product.repository';
++import { StockMoveRepository } from '../../../../infrastructure/persistence/postgresql/repositories/stock-move.repository';
++import { StockMoveType } from '../../../../domain/entities/stock-move.entity';
++import { Product } from '../../../../domain/entities/product.entity';
++
++describe('BulkUploadProductsUseCase', () => {
++  let useCase: BulkUploadProductsUseCase;
++  let productRepo: jest.Mocked<ProductRepository>;
++  let stockMoveRepo: jest.Mocked<StockMoveRepository>;
++  const tenantId = 'tenant-1';
++
++  beforeEach(async () => {
++    const mockProductRepo = {
++      findByTenant: jest.fn(),
++      save: jest.fn(),
++    };
++    const mockStockMoveRepo = {
++      save: jest.fn(),
++    };
++
++    const module: TestingModule = await Test.createTestingModule({
++      providers: [
++        BulkUploadProductsUseCase,
++        { provide: ProductRepository, useValue: mockProductRepo },
++        { provide: StockMoveRepository, useValue: mockStockMoveRepo },
++      ],
++    }).compile();
++
++    useCase = module.get<BulkUploadProductsUseCase>(BulkUploadProductsUseCase);
++    productRepo = module.get(ProductRepository);
++    stockMoveRepo = module.get(StockMoveRepository);
++  });
++
++  it('should successfully upload products and record initial stock', async () => {
++    const products = [
++      {
++        sku: 'SKU-1',
++        name: 'Product 1',
++        costUsd: 10,
++        priceUsd: 15,
++        taxRate: 16,
++        initialStock: 50,
++      },
++    ];
++
++    productRepo.findByTenant.mockResolvedValue([]);
++    productRepo.save.mockImplementation(async (data) => ({ ...data, id: 'uuid-1' } as any));
++    stockMoveRepo.save.mockImplementation(async (data) => ({ ...data, id: 'uuid-2' } as any));
++
++    const result = await useCase.execute(tenantId, products);
++
++    expect(result.success).toHaveLength(1);
++    expect(result.success[0].sku).toBe('SKU-1');
++    expect(productRepo.save).toHaveBeenCalled();
++    expect(stockMoveRepo.save).toHaveBeenCalledWith(expect.objectContaining({
++      type: StockMoveType.INITIAL_LOAD,
++      quantity: 50,
++    }));
++  });
++
++  it('should maintain tenant isolation (AC: #1)', async () => {
++    const productsTenantA = [{ sku: 'SKU-A', name: 'Prod A', costUsd: 10, priceUsd: 15, taxRate: 16, initialStock: 10 }];
++    const productsTenantB = [{ sku: 'SKU-B', name: 'Prod B', costUsd: 10, priceUsd: 15, taxRate: 16, initialStock: 10 }];
++
++    productRepo.findByTenant.mockResolvedValue([]);
++    productRepo.save.mockImplementation(async (data) => ({ ...data, id: 'uuid-1' } as any));
++    stockMoveRepo.save.mockImplementation(async (data) => ({ ...data, id: 'uuid-2' } as any));
++
++    await useCase.execute('TENANT-A', productsTenantA);
++    expect(productRepo.save).toHaveBeenCalledWith(expect.objectContaining({ tenant_id: 'TENANT-A' }));
++
++    await useCase.execute('TENANT-B', productsTenantB);
++    expect(productRepo.save).toHaveBeenCalledWith(expect.objectContaining({ tenant_id: 'TENANT-B' }));
++  });
++
++  it('should fail if SKU already exists', async () => {
++    const products = [
++      {
++        sku: 'SKU-EXIST',
++        name: 'Product X',
++        costUsd: 10,
++        priceUsd: 15,
++        taxRate: 16,
++        initialStock: 50,
++      },
++    ];
++
++    productRepo.findByTenant.mockResolvedValue([new Product({ sku: 'SKU-EXIST' } as any)]);
++
++    const result = await useCase.execute(tenantId, products);
++
++    expect(result.errors).toHaveLength(1);
++    expect(result.errors[0].error).toContain('SKU already exists');
++  });
++});
+diff --git a/backend/src/infrastructure/persistence/postgresql/repositories/product.repository.ts b/backend/src/infrastructure/persistence/postgresql/repositories/product.repository.ts
+new file mode 100644
+index 0000000..65e5add
+--- /dev/null
++++ b/backend/src/infrastructure/persistence/postgresql/repositories/product.repository.ts
+@@ -0,0 +1,24 @@
++import { Injectable } from '@nestjs/common';
++import { InjectRepository } from '@nestjs/typeorm';
++import { Repository } from 'typeorm';
++import { Product } from '../../../../domain/entities/product.entity';
++
++@Injectable()
++export class ProductRepository {
++  constructor(
++    @InjectRepository(Product)
++    private readonly productRepository: Repository<Product>,
++  ) {}
++
++  async findByTenant(tenantId: string): Promise<Product[]> {
++    return this.productRepository.find({ where: { tenant_id: tenantId } });
++  }
++
++  async save(product: Product): Promise<Product> {
++    return this.productRepository.save(product);
++  }
++
++  async saveMany(products: Product[]): Promise<Product[]> {
++    return this.productRepository.save(products);
++  }
++}
+diff --git a/backend/src/infrastructure/persistence/postgresql/repositories/stock-move.repository.ts b/backend/src/infrastructure/persistence/postgresql/repositories/stock-move.repository.ts
+new file mode 100644
+index 0000000..aa64bca
+--- /dev/null
++++ b/backend/src/infrastructure/persistence/postgresql/repositories/stock-move.repository.ts
+@@ -0,0 +1,23 @@
++import { Injectable } from '@nestjs/common';
++import { InjectRepository } from '@nestjs/typeorm';
++import { Repository } from 'typeorm';
++import { StockMove } from '../../../../domain/entities/stock-move.entity';
++
++@Injectable()
++export class StockMoveRepository {
++  constructor(
++    @InjectRepository(StockMove)
++    private readonly stockMoveRepository: Repository<StockMove>,
++  ) {}
++
++  async save(move: StockMove): Promise<StockMove> {
++    return this.stockMoveRepository.save(move);
++  }
++
++  async findByProduct(tenantId: string, productId: string): Promise<StockMove[]> {
++    return this.stockMoveRepository.find({
++      where: { tenant_id: tenantId, product_id: productId },
++      order: { created_at: 'DESC' },
++    });
++  }
++}
+diff --git a/backend/src/infrastructure/persistence/postgresql/tests/product.repository.spec.ts b/backend/src/infrastructure/persistence/postgresql/tests/product.repository.spec.ts
+new file mode 100644
+index 0000000..021285f
+--- /dev/null
++++ b/backend/src/infrastructure/persistence/postgresql/tests/product.repository.spec.ts
+@@ -0,0 +1,53 @@
++import { Test, TestingModule } from '@nestjs/testing';
++import { getRepositoryToken } from '@nestjs/typeorm';
++import { Repository } from 'typeorm';
++import { ProductRepository } from '../repositories/product.repository';
++import { Product } from '../../../../domain/entities/product.entity';
++
++describe('ProductRepository', () => {
++  let repository: ProductRepository;
++  let mockTypeormRepository: jest.Mocked<Repository<Product>>;
++
++  beforeEach(async () => {
++    mockTypeormRepository = {
++      find: jest.fn(),
++      save: jest.fn(),
++    } as any;
++
++    const module: TestingModule = await Test.createTestingModule({
++      providers: [
++        ProductRepository,
++        {
++          provide: getRepositoryToken(Product),
++          useValue: mockTypeormRepository,
++        },
++      ],
++    }).compile();
++
++    repository = module.get<ProductRepository>(ProductRepository);
++  });
++
++  it('should be defined', () => {
++    expect(repository).toBeDefined();
++  });
++
++  it('should find products by tenant', async () => {
++    const mockProducts = [new Product({ id: '1', tenant_id: 'tenant-1' } as any)];
++    mockTypeormRepository.find.mockResolvedValue(mockProducts);
++
++    const result = await repository.findByTenant('tenant-1');
++    expect(result).toEqual(mockProducts);
++    expect(mockTypeormRepository.find).toHaveBeenCalledWith({
++      where: { tenant_id: 'tenant-1' },
++    });
++  });
++
++  it('should save a product', async () => {
++    const product = new Product({ sku: 'SKU-1' } as any);
++    mockTypeormRepository.save.mockResolvedValue(product);
++
++    const result = await repository.save(product);
++    expect(result).toEqual(product);
++    expect(mockTypeormRepository.save).toHaveBeenCalledWith(product);
++  });
++});
+diff --git a/backend/src/infrastructure/persistence/postgresql/tests/stock-move.repository.spec.ts b/backend/src/infrastructure/persistence/postgresql/tests/stock-move.repository.spec.ts
+new file mode 100644
+index 0000000..98aa9ea
+--- /dev/null
++++ b/backend/src/infrastructure/persistence/postgresql/tests/stock-move.repository.spec.ts
+@@ -0,0 +1,54 @@
++import { Test, TestingModule } from '@nestjs/testing';
++import { getRepositoryToken } from '@nestjs/typeorm';
++import { Repository } from 'typeorm';
++import { StockMoveRepository } from '../repositories/stock-move.repository';
++import { StockMove, StockMoveType } from '../../../../domain/entities/stock-move.entity';
++
++describe('StockMoveRepository', () => {
++  let repository: StockMoveRepository;
++  let mockTypeormRepository: jest.Mocked<Repository<StockMove>>;
++
++  beforeEach(async () => {
++    mockTypeormRepository = {
++      save: jest.fn(),
++      find: jest.fn(),
++    } as any;
++
++    const module: TestingModule = await Test.createTestingModule({
++      providers: [
++        StockMoveRepository,
++        {
++          provide: getRepositoryToken(StockMove),
++          useValue: mockTypeormRepository,
++        },
++      ],
++    }).compile();
++
++    repository = module.get<StockMoveRepository>(StockMoveRepository);
++  });
++
++  it('should be defined', () => {
++    expect(repository).toBeDefined();
++  });
++
++  it('should save a stock move', async () => {
++    const move = { product_id: 'prod-1', type: StockMoveType.INITIAL_LOAD } as StockMove;
++    mockTypeormRepository.save.mockResolvedValue(move);
++
++    const result = await repository.save(move);
++    expect(result).toEqual(move);
++    expect(mockTypeormRepository.save).toHaveBeenCalledWith(move);
++  });
++
++  it('should find moves by product', async () => {
++    const mockMoves = [{ id: 'move-1' }] as StockMove[];
++    mockTypeormRepository.find.mockResolvedValue(mockMoves);
++
++    const result = await repository.findByProduct('tenant-1', 'prod-1');
++    expect(result).toEqual(mockMoves);
++    expect(mockTypeormRepository.find).toHaveBeenCalledWith({
++      where: { tenant_id: 'tenant-1', product_id: 'prod-1' },
++      order: { created_at: 'DESC' },
++    });
++  });
++});
+diff --git a/backend/src/presentation/web/controllers/inventory.controller.ts b/backend/src/presentation/web/controllers/inventory.controller.ts
+new file mode 100644
+index 0000000..e156a61
+--- /dev/null
++++ b/backend/src/presentation/web/controllers/inventory.controller.ts
+@@ -0,0 +1,25 @@
++import { Controller, Post, Body, Headers, UseGuards } from '@nestjs/common';
++import { ApiTags, ApiOperation, ApiHeader } from '@nestjs/swagger';
++import { BulkUploadProductsUseCase } from '../../../application/use-cases/inventory/bulk-upload-products.use-case';
++import { CreateProductDto } from '../../../application/use-cases/inventory/create-product.dto';
++import { ModulesGuard } from '../../../infrastructure/auth/guards/modules.guard';
++import { RequiredModules, AppModule } from '../../../infrastructure/auth/decorators/modules.decorator';
++
++@ApiTags('Inventory')
++@Controller('inventory')
++@UseGuards(ModulesGuard)
++export class InventoryController {
++  constructor(private readonly bulkUploadUseCase: BulkUploadProductsUseCase) {}
++
++  @Post('products')
++  @RequiredModules(AppModule.INVENTORY)
++  @ApiOperation({ summary: 'Create products and initialize stock' })
++  @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier' })
++  async createProduct(
++    @Headers('x-tenant-id') tenantId: string,
++    @Body() products: CreateProductDto[],
++  ) {
++    // Note: In a real app, x-tenant-id would be extracted by a guard/interceptor
++    return this.bulkUploadUseCase.execute(tenantId, products);
++  }
++}
+diff --git a/backend/src/presentation/web/controllers/tests/inventory.controller.spec.ts b/backend/src/presentation/web/controllers/tests/inventory.controller.spec.ts
+new file mode 100644
+index 0000000..7baef77
+--- /dev/null
++++ b/backend/src/presentation/web/controllers/tests/inventory.controller.spec.ts
+@@ -0,0 +1,32 @@
++import { InventoryController } from '../inventory.controller';
++import { BulkUploadProductsUseCase } from '../../../../application/use-cases/inventory/bulk-upload-products.use-case';
++
++describe('InventoryController', () => {
++  let controller: InventoryController;
++  let useCase: BulkUploadProductsUseCase;
++
++  beforeEach(() => {
++    useCase = { execute: jest.fn() } as any;
++    controller = new InventoryController(useCase);
++  });
++
++  it('should be defined', () => {
++    expect(controller).toBeDefined();
++  });
++
++  it('should call execute on use case when creating products', async () => {
++    const dto = {
++      sku: 'SKU-123',
++      name: 'Test Product',
++      costUsd: 10,
++      priceUsd: 20,
++      taxRate: 16,
++      initialStock: 100,
++    };
++    const tenantId = 'tenant-123';
++
++    await controller.createProduct(tenantId, [dto]);
++
++    expect(useCase.execute).toHaveBeenCalledWith(tenantId, [dto]);
++  });
++});

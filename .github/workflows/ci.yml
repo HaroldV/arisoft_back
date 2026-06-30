@@ -1,0 +1,59 @@
+name: CI - backend
+
+on:
+  push:
+    branches: [ develop, main ]
+  pull_request:
+    branches: [ develop, main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: ari_admin
+          POSTGRES_PASSWORD: ari_password_2026
+          POSTGRES_DB: ari_erp_db
+        ports:
+          - 5444:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use Node.js 18.x
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18.x
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Load schema to database
+      run: |
+        PGPASSWORD=ari_password_2026 psql -h localhost -p 5444 -U ari_admin -d ari_erp_db -f src/infrastructure/persistence/postgresql/migrations/001_initial_schema.sql
+        PGPASSWORD=ari_password_2026 psql -h localhost -p 5444 -U ari_admin -d ari_erp_db -f src/infrastructure/persistence/postgresql/migrations/002_password_reset_tokens.sql
+        PGPASSWORD=ari_password_2026 psql -h localhost -p 5444 -U ari_admin -d ari_erp_db -f src/infrastructure/persistence/postgresql/migrations/003_refresh_tokens.sql
+        PGPASSWORD=ari_password_2026 psql -h localhost -p 5444 -U ari_admin -d ari_erp_db -f src/infrastructure/persistence/postgresql/migrations/004_purchase_invoices.sql
+        PGPASSWORD=ari_password_2026 psql -h localhost -p 5444 -U ari_admin -d ari_erp_db -f src/infrastructure/persistence/postgresql/migrations/005_sale_items.sql
+
+    - name: Run unit and integration tests
+      run: npm run test
+      env:
+        DB_HOST: localhost
+        DB_PORT: 5444
+        DB_USER: ari_admin
+        DB_PASSWORD: ari_password_2026
+        DB_NAME: ari_erp_db
+        JWT_SECRET: test-jwt-secret-2026
+
+    - name: Build production bundle
+      run: npm run build

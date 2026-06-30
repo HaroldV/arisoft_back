@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  ari-db:
+    image: postgres:15-alpine
+    container_name: ari-postgresql
+    restart: always
+    environment:
+      POSTGRES_USER: ari_admin
+      POSTGRES_PASSWORD: ari_password_2026
+      POSTGRES_DB: ari_erp_db
+    ports:
+      - "5444:5432"
+    volumes:
+      - ari_db_data:/var/lib/postgresql/data
+      # Inyectar esquema inicial automáticamente al levantar
+      - ./src/infrastructure/persistence/postgresql/migrations:/docker-entrypoint-initdb.d
+
+volumes:
+  ari_db_data:
