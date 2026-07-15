@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsOptional, IsArray, ValidateNested, IsUUID, IsNumber, Min } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsArray, ValidateNested, IsUUID, IsNumber, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -27,6 +27,42 @@ export class PurchaseItemDto {
   @IsNumber()
   @Min(0)
   unitCostUsd: number;
+
+  @ApiProperty({
+    description: 'Identificador único (UUID) de la ubicación física en el WMS',
+    example: 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33',
+    required: false,
+  })
+  @IsOptional()
+  @IsUUID()
+  locationId?: string;
+
+  @ApiProperty({
+    description: 'Número de lote para productos con control de lotes',
+    example: 'LT-2026-07',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  batchNumber?: string;
+
+  @ApiProperty({
+    description: 'Fecha de elaboración del lote (YYYY-MM-DD)',
+    example: '2026-07-01',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  productionDate?: string;
+
+  @ApiProperty({
+    description: 'Fecha de vencimiento del lote para productos perecederos (YYYY-MM-DD)',
+    example: '2027-07-01',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  expirationDate?: string;
 }
 
 export class RegisterPurchaseDto {
@@ -63,4 +99,24 @@ export class RegisterPurchaseDto {
   @ValidateNested({ each: true })
   @Type(() => PurchaseItemDto)
   items: PurchaseItemDto[];
+
+  @ApiProperty({
+    description: 'Identificador único (UUID) del proveedor',
+    example: 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33',
+    required: false,
+  })
+  @IsOptional()
+  @IsUUID()
+  providerId?: string;
+
+  @ApiProperty({
+    description: 'Porcentaje de descuento global aplicado a la factura (ej: 10 para 10%)',
+    example: 10.00,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  discountPercentage?: number;
 }

@@ -41,6 +41,8 @@ export class PurchaseInvoiceRepository extends BaseTenantRepository<PurchaseInvo
         'invoice.invoice_number AS invoice_number',
         'invoice.supplier_name AS supplier_name',
         'invoice.total_amount_usd AS total_amount_usd',
+        'invoice.discount_percentage AS discount_percentage',
+        'invoice.discount_amount_usd AS discount_amount_usd',
         'invoice.proof_file_path AS proof_file_path',
         'invoice.created_by_user_id AS created_by_user_id',
         'invoice.created_at AS created_at',
@@ -57,6 +59,8 @@ export class PurchaseInvoiceRepository extends BaseTenantRepository<PurchaseInvo
       invoice_number: r.invoice_number,
       supplier_name: r.supplier_name,
       total_amount_usd: parseFloat(r.total_amount_usd),
+      discount_percentage: r.discount_percentage ? parseFloat(r.discount_percentage) : 0,
+      discount_amount_usd: r.discount_amount_usd ? parseFloat(r.discount_amount_usd) : 0,
       proof_file_path: r.proof_file_path,
       created_at: r.created_at,
       created_by: {
@@ -98,6 +102,8 @@ export class PurchaseInvoiceRepository extends BaseTenantRepository<PurchaseInvo
       invoice_number: invoice.invoice_number,
       supplier_name: invoice.supplier_name,
       total_amount_usd: parseFloat(invoice.total_amount_usd as any),
+      discount_percentage: invoice.discount_percentage ? parseFloat(invoice.discount_percentage as any) : 0,
+      discount_amount_usd: invoice.discount_amount_usd ? parseFloat(invoice.discount_amount_usd as any) : 0,
       proof_file_path: invoice.proof_file_path,
       created_at: invoice.created_at,
       created_by: {

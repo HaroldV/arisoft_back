@@ -15,8 +15,17 @@ export class PurchaseInvoice {
   @Column()
   supplier_name: string;
 
+  @Column({ type: 'uuid', nullable: true })
+  provider_id?: string;
+
   @Column({ type: 'numeric', precision: 12, scale: 4 })
   total_amount_usd: number;
+
+  @Column({ type: 'numeric', precision: 5, scale: 2, default: 0 })
+  discount_percentage: number;
+
+  @Column({ type: 'numeric', precision: 12, scale: 4, default: 0 })
+  discount_amount_usd: number;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   proof_file_path?: string;

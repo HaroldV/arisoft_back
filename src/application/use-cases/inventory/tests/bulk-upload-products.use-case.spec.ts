@@ -23,8 +23,17 @@ describe('BulkUploadProductsUseCase', () => {
       save: jest.fn(),
     };
 
+    const mockQueryBuilder = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue({ id: 'cat-id-uuid', name: 'General' }),
+    };
+
     mockManager = {
       save: jest.fn().mockImplementation(async (entityClass, data) => ({ ...data, id: 'uuid-saved' })),
+      findOne: jest.fn().mockResolvedValue({ id: 'cat-id-uuid', name: 'General' }),
+      createQueryBuilder: jest.fn().mockReturnValue(mockQueryBuilder),
     };
 
     mockDataSource = {
@@ -63,7 +72,7 @@ describe('BulkUploadProductsUseCase', () => {
 
     expect(result.success).toHaveLength(1);
     expect(result.success[0].sku).toBe('SKU-1');
-    expect(mockManager.save).toHaveBeenCalledTimes(2);
+    expect(mockManager.save).toHaveBeenCalledTimes(3);
   });
 
   it('should maintain tenant isolation (AC: #1)', async () => {

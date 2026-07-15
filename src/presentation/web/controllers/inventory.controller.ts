@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiHeader, ApiBody, ApiQuery, ApiBearerAuth } fr
 import { isUUID } from 'class-validator';
 import { BulkUploadProductsUseCase } from '../../../application/use-cases/inventory/bulk-upload-products.use-case';
 import { RegisterPurchaseUseCase } from '../../../application/use-cases/inventory/register-purchase.use-case';
+import { RegisterPurchaseNoteUseCase, RegisterPurchaseNoteDto } from '../../../application/use-cases/inventory/register-purchase-note.use-case';
 import { UpdateProductUseCase } from '../../../application/use-cases/inventory/update-product.use-case';
 import { DeleteProductUseCase } from '../../../application/use-cases/inventory/delete-product.use-case';
 import { CreateProductDto } from '../../../application/use-cases/inventory/create-product.dto';
@@ -10,6 +11,7 @@ import { UpdateProductDto } from '../../../application/use-cases/inventory/updat
 import { RegisterPurchaseDto } from '../../../application/use-cases/inventory/register-purchase.dto';
 import { ProductRepository } from '../../../infrastructure/persistence/postgresql/repositories/product.repository';
 import { PurchaseInvoiceRepository } from '../../../infrastructure/persistence/postgresql/repositories/purchase-invoice.repository';
+import { PurchaseFiscalNoteRepository } from '../../../infrastructure/persistence/postgresql/repositories/purchase-fiscal-note.repository';
 import { ModulesGuard } from '../../../infrastructure/auth/guards/modules.guard';
 import { JwtAuthGuard } from '../../../infrastructure/auth/guards/jwt-auth.guard';
 import { RequiredModules, AppModule } from '../../../infrastructure/auth/decorators/modules.decorator';
@@ -22,10 +24,12 @@ export class InventoryController {
   constructor(
     private readonly bulkUploadUseCase: BulkUploadProductsUseCase,
     private readonly registerPurchaseUseCase: RegisterPurchaseUseCase,
+    private readonly registerPurchaseNoteUseCase: RegisterPurchaseNoteUseCase,
     private readonly updateProductUseCase: UpdateProductUseCase,
     private readonly deleteProductUseCase: DeleteProductUseCase,
     private readonly productRepo: ProductRepository,
     private readonly purchaseInvoiceRepo: PurchaseInvoiceRepository,
+    private readonly purchaseFiscalNoteRepo: PurchaseFiscalNoteRepository,
   ) {}
 
   @Get('products')
@@ -173,5 +177,67 @@ export class InventoryController {
     }
     await this.deleteProductUseCase.execute(id);
     return { message: 'Product successfully deleted' };
+  }
+
+  @Get('purchases/notes')
+  @RequiredModules(AppModule.INVENTORY)
+  @ApiOperation({ summary: 'Get purchase notes history for the tenant' })
+  @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier' })
+  async getPurchaseNotes(
+    @Headers('x-tenant-id') tenantId: string,
+    @Req() req: any,
+  ) {
+    if (!tenantId || !isUUID(tenantId)) {
+      throw new BadRequestException('x-tenant-id must be a valid UUID');
+    }
+    if (tenantId !== req.user.tenant_id) {
+      throw new ForbiddenException('Tenant ID does not match authenticated session');
+    }
+    return this.purchaseFiscalNoteRepo.findNotesList();
+  }
+
+  @Get('purchases/notes/:id')
+  @RequiredModules(AppModule.INVENTORY)
+  @ApiOperation({ summary: 'Get purchase note details by ID' })
+  @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier' })
+  async getPurchaseNoteDetails(
+    @Param('id') id: string,
+    @Headers('x-tenant-id') tenantId: string,
+    @Req() req: any,
+  ) {
+    if (!tenantId || !isUUID(tenantId)) {
+      throw new BadRequestException('x-tenant-id must be a valid UUID');
+    }
+    if (tenantId !== req.user.tenant_id) {
+      throw new ForbiddenException('Tenant ID does not match authenticated session');
+    }
+    if (!id || !isUUID(id)) {
+      throw new BadRequestException('Note ID must be a valid UUID');
+    }
+    const result = await this.purchaseFiscalNoteRepo.findNoteDetails(id);
+    if (!result) {
+      throw new NotFoundException(`Purchase Note with ID ${id} not found`);
+    }
+    return result;
+  }
+
+  @Post('purchases/notes')
+  @RequiredModules(AppModule.INVENTORY)
+  @ApiOperation({ summary: 'Register a purchase note (Credit/Debit)' })
+  @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier' })
+  async registerPurchaseNote(
+    @Headers('x-tenant-id') tenantId: string,
+    @Body() dto: RegisterPurchaseNoteDto,
+    @Req() req: any,
+  ) {
+    if (!tenantId || !isUUID(tenantId)) {
+      throw new BadRequestException('x-tenant-id must be a valid UUID');
+    }
+    if (tenantId !== req.user.tenant_id) {
+      throw new ForbiddenException('Tenant ID does not match authenticated session');
+    }
+    const userId = req.user.userId;
+    const ipAddress = req.ip || '127.0.0.1';
+    return this.registerPurchaseNoteUseCase.execute(tenantId, userId, ipAddress, dto);
   }
 }

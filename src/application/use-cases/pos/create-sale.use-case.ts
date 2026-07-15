@@ -7,6 +7,8 @@ import { SaleRepository } from '../../../infrastructure/persistence/postgresql/r
 import { ProductRepository } from '../../../infrastructure/persistence/postgresql/repositories/product.repository';
 import { StockMoveRepository } from '../../../infrastructure/persistence/postgresql/repositories/stock-move.repository';
 import { TenantRepository } from '../../../infrastructure/persistence/postgresql/repositories/tenant.repository';
+import { TenantFiscalRangeRepository } from '../../../infrastructure/persistence/postgresql/repositories/tenant-fiscal-range.repository';
+import { FiscalDocType } from '../../../domain/entities/tenant-fiscal-range.entity';
 import { CreateSaleDto } from './create-sale.dto';
 
 @Injectable()
@@ -16,6 +18,7 @@ export class CreateSaleUseCase {
     private readonly productRepo: ProductRepository,
     private readonly stockMoveRepo: StockMoveRepository,
     private readonly tenantRepo: TenantRepository,
+    private readonly tenantFiscalRangeRepo: TenantFiscalRangeRepository,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -84,6 +87,9 @@ export class CreateSaleUseCase {
 
       const exchangeRate = dto.exchangeRateApplied || 1.0;
 
+      // Resolve next fiscal and control numbers inside transaction block
+      const numbers = await this.tenantFiscalRangeRepo.getNextRangeNumbers(FiscalDocType.INVOICE);
+
       // Save sale header
       const sale = await manager.save(Sale, new Sale({
         tenant_id: tenantId,
@@ -91,6 +97,9 @@ export class CreateSaleUseCase {
         total_amount_usd: totalAmountUsd,
         exchange_rate_applied: exchangeRate,
         status: 'PAID',
+        client_id: dto.clientId || null,
+        invoice_number: numbers.documentNumber,
+        control_number: numbers.controlNumber,
       }));
 
       // Process items and stock movements
@@ -125,6 +134,8 @@ export class CreateSaleUseCase {
       return {
         message: 'Sale registered successfully',
         saleId: sale.id,
+        invoiceNumber: sale.invoice_number,
+        controlNumber: sale.control_number,
         totalAmountUsd,
       };
     });

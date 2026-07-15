@@ -9,6 +9,7 @@ import { TenantRepository } from '../../../../infrastructure/persistence/postgre
 import { Product } from '../../../../domain/entities/product.entity';
 import { Tenant } from '../../../../domain/entities/tenant.entity';
 import { StockMoveType } from '../../../../domain/entities/stock-move.entity';
+import { TenantFiscalRangeRepository } from '../../../../infrastructure/persistence/postgresql/repositories/tenant-fiscal-range.repository';
 
 describe('CreateSaleUseCase', () => {
   let useCase: CreateSaleUseCase;
@@ -16,6 +17,7 @@ describe('CreateSaleUseCase', () => {
   let productRepo: jest.Mocked<ProductRepository>;
   let stockMoveRepo: jest.Mocked<StockMoveRepository>;
   let tenantRepo: jest.Mocked<TenantRepository>;
+  let tenantFiscalRangeRepo: jest.Mocked<TenantFiscalRangeRepository>;
   let mockManager: any;
   let mockDataSource: any;
 
@@ -39,6 +41,9 @@ describe('CreateSaleUseCase', () => {
     const mockTenantRepo = {
       findById: jest.fn(),
     };
+    const mockTenantFiscalRangeRepo = {
+      getNextRangeNumbers: jest.fn().mockResolvedValue({ documentNumber: 'FACT-00000001', controlNumber: '00-00000001' }),
+    };
 
     mockManager = {
       save: jest.fn().mockImplementation(async (entityClass, data) => ({ ...data, id: 'saved-sale-id' })),
@@ -55,6 +60,7 @@ describe('CreateSaleUseCase', () => {
         { provide: ProductRepository, useValue: mockProductRepo },
         { provide: StockMoveRepository, useValue: mockStockMoveRepo },
         { provide: TenantRepository, useValue: mockTenantRepo },
+        { provide: TenantFiscalRangeRepository, useValue: mockTenantFiscalRangeRepo },
         { provide: DataSource, useValue: mockDataSource },
       ],
     }).compile();
@@ -64,6 +70,7 @@ describe('CreateSaleUseCase', () => {
     productRepo = module.get(ProductRepository);
     stockMoveRepo = module.get(StockMoveRepository);
     tenantRepo = module.get(TenantRepository);
+    tenantFiscalRangeRepo = module.get(TenantFiscalRangeRepository);
   });
 
   it('should successfully register a sale when stock is sufficient', async () => {

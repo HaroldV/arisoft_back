@@ -10,11 +10,16 @@ describe('SalesController', () => {
 
   beforeEach(() => {
     createSaleUseCase = { execute: jest.fn() } as any;
+    const emitSalesNoteUseCase = { execute: jest.fn() } as any;
     saleRepo = {
       findSalesWithCashier: jest.fn(),
       findSaleDetails: jest.fn(),
     } as any;
-    controller = new SalesController(createSaleUseCase, saleRepo);
+    const salesFiscalNoteRepo = {
+      findNotesList: jest.fn(),
+      findNoteDetails: jest.fn(),
+    } as any;
+    controller = new SalesController(createSaleUseCase, emitSalesNoteUseCase, saleRepo, salesFiscalNoteRepo);
   });
 
   it('should be defined', () => {

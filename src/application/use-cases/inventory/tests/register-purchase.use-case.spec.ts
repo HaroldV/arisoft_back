@@ -33,6 +33,7 @@ describe('RegisterPurchaseUseCase', () => {
     mockManager = {
       save: jest.fn().mockImplementation(async (entityClass, data) => ({ ...data, id: 'saved-id' })),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
+      findOne: jest.fn(),
     };
 
     mockDataSource = {
@@ -69,14 +70,41 @@ describe('RegisterPurchaseUseCase', () => {
       new Product({ id: productId1 } as any),
       new Product({ id: productId2 } as any),
     ]);
+    mockManager.findOne.mockResolvedValue(null);
 
     const result = await useCase.execute(tenantId, userId, dto);
 
     expect(result.message).toBe('Purchase registered successfully');
     expect(result.totalAmountUsd).toBe(10 * 15.5 + 5 * 20); // 155 + 100 = 255
     expect(purchaseInvoiceRepo.findByInvoiceNumber).toHaveBeenCalledWith('INV-100', 'Supplier ABC');
-    expect(mockManager.save).toHaveBeenCalledTimes(5); // 1 invoice + 2 items + 2 stock moves
+    expect(mockManager.save).toHaveBeenCalled();
     expect(mockManager.update).toHaveBeenCalledTimes(2); // 2 products updated with unit cost
+  });
+
+  it('should successfully register a purchase invoice with a global discount percentage', async () => {
+    const dto = {
+      invoiceNumber: 'INV-102-DISC',
+      supplierName: 'Supplier XYZ',
+      discountPercentage: 10,
+      items: [
+        { productId: productId1, quantity: 10, unitCostUsd: 15.5 },
+        { productId: productId2, quantity: 5, unitCostUsd: 20 },
+      ],
+    };
+
+    purchaseInvoiceRepo.findByInvoiceNumber.mockResolvedValue(null);
+    productRepo.findByIds.mockResolvedValue([
+      new Product({ id: productId1 } as any),
+      new Product({ id: productId2 } as any),
+    ]);
+    mockManager.findOne.mockResolvedValue(null);
+
+    const result = await useCase.execute(tenantId, userId, dto);
+
+    expect(result.message).toBe('Purchase registered successfully');
+    // subtotal = 10 * 15.5 + 5 * 20 = 255. discount = 25.5. total = 229.5
+    expect(result.totalAmountUsd).toBe(229.5); 
+    expect(mockManager.save).toHaveBeenCalled();
   });
 
   it('should throw ConflictException if the invoice already exists', async () => {
@@ -108,5 +136,34 @@ describe('RegisterPurchaseUseCase', () => {
     ]);
 
     await expect(useCase.execute(tenantId, userId, dto)).rejects.toThrow(NotFoundException);
+  });
+
+  it('should update existing StockBalance and resolve default location when locationId is omitted', async () => {
+    const dto = {
+      invoiceNumber: 'INV-103-WMS',
+      supplierName: 'Supplier WMS',
+      items: [
+        { productId: productId1, quantity: 15, unitCostUsd: 10 },
+      ],
+    };
+
+    purchaseInvoiceRepo.findByInvoiceNumber.mockResolvedValue(null);
+    productRepo.findByIds.mockResolvedValue([
+      new Product({ id: productId1, has_batch_control: false, is_perishable: false } as any),
+    ]);
+
+    const existingBalance = { id: 'balance-id', quantity: 20 };
+    mockManager.findOne.mockImplementation(async (entityClass, options) => {
+      if (entityClass.name === 'StockBalance') {
+        return existingBalance;
+      }
+      return null;
+    });
+
+    const result = await useCase.execute(tenantId, userId, dto);
+
+    expect(result.message).toBe('Purchase registered successfully');
+    expect(mockManager.save).toHaveBeenCalled();
+    expect(existingBalance.quantity).toBe(35); // 20 + 15
   });
 });

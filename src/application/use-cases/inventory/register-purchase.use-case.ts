@@ -7,6 +7,9 @@ import { Product } from '../../../domain/entities/product.entity';
 import { PurchaseInvoiceRepository } from '../../../infrastructure/persistence/postgresql/repositories/purchase-invoice.repository';
 import { ProductRepository } from '../../../infrastructure/persistence/postgresql/repositories/product.repository';
 import { RegisterPurchaseDto } from './register-purchase.dto';
+import { WarehouseLocation, LocationType } from '../../../domain/entities/warehouse-location.entity';
+import { ProductBatch } from '../../../domain/entities/product-batch.entity';
+import { StockBalance } from '../../../domain/entities/stock-balance.entity';
 
 @Injectable()
 export class RegisterPurchaseUseCase {
@@ -41,11 +44,15 @@ export class RegisterPurchaseUseCase {
 
     // 3. Process transactional inserts/updates
     return this.dataSource.transaction(async (manager) => {
-      // Calculate total amount
-      let totalAmountUsd = 0;
+      // Calculate total amount (respecting discount if specified)
+      let subtotalAmountUsd = 0;
       for (const item of dto.items) {
-        totalAmountUsd += item.quantity * item.unitCostUsd;
+        subtotalAmountUsd += item.quantity * item.unitCostUsd;
       }
+
+      const discountPercentage = dto.discountPercentage || 0;
+      const discountAmountUsd = subtotalAmountUsd * (discountPercentage / 100);
+      const totalAmountUsd = subtotalAmountUsd - discountAmountUsd;
 
       // Save purchase invoice
       const invoice = await manager.save(PurchaseInvoice, new PurchaseInvoice({
@@ -55,6 +62,9 @@ export class RegisterPurchaseUseCase {
         total_amount_usd: totalAmountUsd,
         proof_file_path: dto.proofFilePath,
         created_by_user_id: userId,
+        provider_id: dto.providerId || null,
+        discount_percentage: discountPercentage,
+        discount_amount_usd: discountAmountUsd,
       }));
 
       // Process lines
@@ -83,6 +93,72 @@ export class RegisterPurchaseUseCase {
         await manager.update(Product, { id: item.productId, tenant_id: tenantId }, {
           cost_usd: item.unitCostUsd,
         });
+
+        // 4. Update WMS StockBalances & Batches
+        const product = products.find(p => p.id === item.productId)!;
+
+        // 4.1 Resolve locationId (Dock/Transit fallback if not provided or empty)
+        let resolvedLocationId = item.locationId;
+        if (!resolvedLocationId) {
+          let defaultLoc = await manager.findOne(WarehouseLocation, {
+            where: { tenant_id: tenantId, type: LocationType.WAREHOUSE }
+          });
+          if (!defaultLoc) {
+            defaultLoc = await manager.save(WarehouseLocation, new WarehouseLocation({
+              tenant_id: tenantId,
+              name: 'Almacén Principal',
+              type: LocationType.WAREHOUSE,
+              capacity_limit: 0
+            }));
+          }
+          resolvedLocationId = defaultLoc.id;
+        }
+
+        // 4.2 Resolve batchId if product requires batch control or is perishable
+        let resolvedBatchId: string | null = null;
+        if (product.has_batch_control || product.is_perishable) {
+          const batchNum = (item.batchNumber || `LT-${new Date().toISOString().substring(0, 7)}`).trim().toUpperCase();
+          let batch = await manager.findOne(ProductBatch, {
+            where: {
+              tenant_id: tenantId,
+              product_id: product.id,
+              batch_number: batchNum
+            }
+          });
+          if (!batch) {
+            batch = await manager.save(ProductBatch, new ProductBatch({
+              tenant_id: tenantId,
+              product_id: product.id,
+              batch_number: batchNum,
+              production_date: item.productionDate || undefined,
+              expiration_date: item.expirationDate || undefined
+            }));
+          }
+          resolvedBatchId = batch.id;
+        }
+
+        // 4.3 Upsert StockBalance
+        let balance = await manager.findOne(StockBalance, {
+          where: {
+            tenant_id: tenantId,
+            location_id: resolvedLocationId,
+            product_id: product.id,
+            batch_id: resolvedBatchId || undefined,
+          }
+        });
+
+        if (balance) {
+          balance.quantity = Number(balance.quantity) + Number(item.quantity);
+          await manager.save(StockBalance, balance);
+        } else {
+          await manager.save(StockBalance, new StockBalance({
+            tenant_id: tenantId,
+            location_id: resolvedLocationId,
+            product_id: product.id,
+            batch_id: resolvedBatchId || null,
+            quantity: Number(item.quantity)
+          }));
+        }
       }
 
       return {

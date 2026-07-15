@@ -20,6 +20,15 @@ export class Sale {
   @Column({ default: 'PAID' })
   status: string;
 
+  @Column({ type: 'uuid', nullable: true })
+  client_id?: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  invoice_number?: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  control_number?: string;
+
   @CreateDateColumn()
   created_at: Date;
 

@@ -19,6 +19,7 @@ describe('InventoryController', () => {
   beforeEach(() => {
     useCase = { execute: jest.fn() } as any;
     registerPurchaseUseCase = { execute: jest.fn() } as any;
+    const registerPurchaseNoteUseCase = { execute: jest.fn() } as any;
     updateUseCase = { execute: jest.fn() } as any;
     deleteUseCase = { execute: jest.fn() } as any;
     productRepo = {
@@ -28,7 +29,20 @@ describe('InventoryController', () => {
       findPurchasesWithCreator: jest.fn(),
       findPurchaseDetails: jest.fn(),
     } as any;
-    controller = new InventoryController(useCase, registerPurchaseUseCase, updateUseCase, deleteUseCase, productRepo, purchaseInvoiceRepo);
+    const purchaseFiscalNoteRepo = {
+      findNotesList: jest.fn(),
+      findNoteDetails: jest.fn(),
+    } as any;
+    controller = new InventoryController(
+      useCase,
+      registerPurchaseUseCase,
+      registerPurchaseNoteUseCase,
+      updateUseCase,
+      deleteUseCase,
+      productRepo,
+      purchaseInvoiceRepo,
+      purchaseFiscalNoteRepo
+    );
   });
 
   it('should be defined', () => {
