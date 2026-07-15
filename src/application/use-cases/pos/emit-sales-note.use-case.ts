@@ -87,7 +87,7 @@ export class EmitSalesNoteUseCase {
       const noteTypeRange = dto.type === FiscalNoteType.CREDIT 
         ? FiscalDocType.CREDIT_NOTE 
         : FiscalDocType.DEBIT_NOTE;
-      const numbers = await this.tenantFiscalRangeRepo.getNextRangeNumbers(noteTypeRange);
+      const numbers = await this.tenantFiscalRangeRepo.getNextRangeNumbers(noteTypeRange, manager);
 
       // Calculate totals
       let subtotalUsd = 0;

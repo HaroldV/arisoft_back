@@ -1,6 +1,6 @@
 import { Injectable, Inject, Scope, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, EntityManager } from 'typeorm';
 import { REQUEST } from '@nestjs/core';
 import { TenantFiscalRange, FiscalDocType } from '../../../../domain/entities/tenant-fiscal-range.entity';
 import { BaseTenantRepository } from './base-tenant.repository';
@@ -27,9 +27,13 @@ export class TenantFiscalRangeRepository extends BaseTenantRepository<TenantFisc
     });
   }
 
-  async getNextRangeNumbers(type: 'INVOICE' | 'CREDIT_NOTE' | 'DEBIT_NOTE'): Promise<{ documentNumber: string; controlNumber: string }> {
+  async getNextRangeNumbers(
+    type: 'INVOICE' | 'CREDIT_NOTE' | 'DEBIT_NOTE',
+    manager?: EntityManager
+  ): Promise<{ documentNumber: string; controlNumber: string }> {
+    const activeManager = manager || this.tenantFiscalRangeRepository.manager;
     // Pessimistic write lock to ensure concurrency safety
-    let range = await this.tenantFiscalRangeRepository.manager
+    let range = await activeManager
       .createQueryBuilder(TenantFiscalRange, 'range')
       .setLock('pessimistic_write')
       .where('range.tenant_id = :tenantId AND range.type = :type', { tenantId: this.tenantId, type })
@@ -52,7 +56,7 @@ export class TenantFiscalRangeRepository extends BaseTenantRepository<TenantFisc
 
     const nextNumber = range.current_number + 1;
     range.current_number = nextNumber;
-    await this.tenantFiscalRangeRepository.save(range);
+    await activeManager.save(range);
 
     const padded = String(nextNumber).padStart(8, '0');
     let prefix = 'FACT';

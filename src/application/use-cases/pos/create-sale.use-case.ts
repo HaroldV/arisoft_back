@@ -88,7 +88,7 @@ export class CreateSaleUseCase {
       const exchangeRate = dto.exchangeRateApplied || 1.0;
 
       // Resolve next fiscal and control numbers inside transaction block
-      const numbers = await this.tenantFiscalRangeRepo.getNextRangeNumbers(FiscalDocType.INVOICE);
+      const numbers = await this.tenantFiscalRangeRepo.getNextRangeNumbers(FiscalDocType.INVOICE, manager);
 
       // Save sale header
       const sale = await manager.save(Sale, new Sale({
