@@ -15,7 +15,7 @@ async function seed() {
     await client.query('TRUNCATE TABLE sale_items, sales, purchase_items, purchase_invoices, stocks, products, users, tenants CASCADE;');
 
     // 2. Generate password hashes
-    const passwordHash = await bcrypt.hash('password123', 10);
+    const passwordHash = await bcrypt.hash('Admin123!', 10);
 
     // 3. Insert Tenant
     const tenantId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
@@ -27,9 +27,9 @@ async function seed() {
       tenantId,
       'ARI Corp',
       'J-12345678-9',
-      'TRIAL_90',
-      new Date('2030-01-01'),
-      JSON.stringify({ allow_negative_stock: true }),
+      'EMPRENDEDOR',
+      new Date('2035-12-31'),
+      JSON.stringify({ allow_negative_stock: true, all_modules_enabled: true }),
       true,
     ]);
 
@@ -46,6 +46,12 @@ async function seed() {
       INSERT INTO users (id, tenant_id, full_name, email, password_hash, role, is_active)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
     `, [cashierId, tenantId, 'Cajero Juan', 'juan@ari.com', passwordHash, 'CASHIER', true]);
+
+    const superAdminId = 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a99';
+    await client.query(`
+      INSERT INTO users (id, tenant_id, full_name, email, password_hash, role, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [superAdminId, tenantId, 'Super Admin', 'superadmin@ari.com', passwordHash, 'SUPER_ADMIN', true]);
 
     // 5. Insert Products
     const prod1Id = 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a44';

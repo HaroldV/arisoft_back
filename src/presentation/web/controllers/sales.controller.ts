@@ -4,16 +4,18 @@ import { isUUID } from 'class-validator';
 import { CreateSaleUseCase } from '../../../application/use-cases/pos/create-sale.use-case';
 import { CreateSaleDto } from '../../../application/use-cases/pos/create-sale.dto';
 import { EmitSalesNoteUseCase, EmitSalesNoteDto } from '../../../application/use-cases/pos/emit-sales-note.use-case';
-import { SaleRepository } from '../../../infrastructure/persistence/postgresql/repositories/sale.repository';
-import { SalesFiscalNoteRepository } from '../../../infrastructure/persistence/postgresql/repositories/sales-fiscal-note.repository';
+import { SaleRepository } from '../../../infrastructure/persistence/typeorm/repositories/sale.repository';
+import { SalesFiscalNoteRepository } from '../../../infrastructure/persistence/typeorm/repositories/sales-fiscal-note.repository';
 import { ModulesGuard } from '../../../infrastructure/auth/guards/modules.guard';
 import { JwtAuthGuard } from '../../../infrastructure/auth/guards/jwt-auth.guard';
 import { RequiredModules, AppModule } from '../../../infrastructure/auth/decorators/modules.decorator';
+import { PermissionsGuard } from '../../../infrastructure/auth/guards/permissions.guard';
+import { RequiredPermissions } from '../../../infrastructure/auth/decorators/permissions.decorator';
 
 @ApiTags('Sales')
 @ApiBearerAuth()
 @Controller('sales')
-@UseGuards(JwtAuthGuard, ModulesGuard)
+@UseGuards(JwtAuthGuard, ModulesGuard, PermissionsGuard)
 export class SalesController {
   constructor(
     private readonly createSaleUseCase: CreateSaleUseCase,
@@ -24,6 +26,7 @@ export class SalesController {
 
   @Get()
   @RequiredModules(AppModule.POS)
+  @RequiredPermissions('pos:create')
   @ApiOperation({ summary: 'Get sales history for the tenant' })
   @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier' })
   async getSales(
@@ -41,6 +44,7 @@ export class SalesController {
 
   @Get('notes')
   @RequiredModules(AppModule.POS)
+  @RequiredPermissions('pos:create')
   @ApiOperation({ summary: 'Get sales notes history for the tenant' })
   @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier' })
   async getSalesNotes(
@@ -58,6 +62,7 @@ export class SalesController {
 
   @Get('notes/:id')
   @RequiredModules(AppModule.POS)
+  @RequiredPermissions('pos:create')
   @ApiOperation({ summary: 'Get sales note details by ID' })
   @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier' })
   async getSalesNoteDetails(
@@ -83,6 +88,7 @@ export class SalesController {
 
   @Get(':id')
   @RequiredModules(AppModule.POS)
+  @RequiredPermissions('pos:create')
   @ApiOperation({ summary: 'Get sale details by ID' })
   @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier' })
   async getSaleDetails(
@@ -90,6 +96,9 @@ export class SalesController {
     @Headers('x-tenant-id') tenantId: string,
     @Req() req: any,
   ) {
+    if (id === 'documents' || id === 'notes') {
+      throw new NotFoundException(`Ruta no encontrada para ${id}`);
+    }
     if (!tenantId || !isUUID(tenantId)) {
       throw new BadRequestException('x-tenant-id must be a valid UUID');
     }
@@ -108,6 +117,7 @@ export class SalesController {
 
   @Post()
   @RequiredModules(AppModule.POS)
+  @RequiredPermissions('pos:create')
   @ApiOperation({ summary: 'Register a POS sale and deduct products stock' })
   @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier (must match authenticated tenant)' })
   @ApiBody({ type: CreateSaleDto, description: 'Datos de la venta a registrar y productos a descontar' })
@@ -122,12 +132,17 @@ export class SalesController {
     if (tenantId !== req.user.tenant_id) {
       throw new ForbiddenException('Tenant ID does not match authenticated session');
     }
-    const userId = req.user.userId;
-    return this.createSaleUseCase.execute(tenantId, userId, dto);
+    const user = {
+      id: req.user.userId,
+      role: req.user.role,
+      permissions: req.user.permissions || [],
+    };
+    return this.createSaleUseCase.execute(tenantId, user, dto);
   }
 
   @Post('notes')
   @RequiredModules(AppModule.POS)
+  @RequiredPermissions('pos:refund')
   @ApiOperation({ summary: 'Emit a sales note (Credit/Debit)' })
   @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier' })
   async emitSalesNote(

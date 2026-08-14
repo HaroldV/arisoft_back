@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { LogoutUseCase } from './logout.use-case';
-import { RefreshTokenRepository } from '../../../infrastructure/persistence/postgresql/repositories/refresh-token.repository';
+import { RefreshTokenRepository } from '../../../infrastructure/persistence/typeorm/repositories/refresh-token.repository';
 
 describe('LogoutUseCase', () => {
   let useCase: LogoutUseCase;

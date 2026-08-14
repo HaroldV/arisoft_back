@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { TenantFiscalRange } from '../../../domain/entities/tenant-fiscal-range.entity';
-import { TenantFiscalRangeRepository } from '../../../infrastructure/persistence/postgresql/repositories/tenant-fiscal-range.repository';
+import { TenantFiscalRangeRepository } from '../../../infrastructure/persistence/typeorm/repositories/tenant-fiscal-range.repository';
 import { ConfigureFiscalRangeDto } from './dto/configure-fiscal-range.dto';
 
 @Injectable()

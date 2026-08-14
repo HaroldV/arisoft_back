@@ -10,8 +10,8 @@ import { StockMove, StockMoveType } from '../../../domain/entities/stock-move.en
 import { StockBalance } from '../../../domain/entities/stock-balance.entity';
 import { WarehouseLocation } from '../../../domain/entities/warehouse-location.entity';
 import { FiscalAuditLog } from '../../../domain/entities/fiscal-audit-log.entity';
-import { PurchaseFiscalNoteRepository } from '../../../infrastructure/persistence/postgresql/repositories/purchase-fiscal-note.repository';
-import { ProductRepository } from '../../../infrastructure/persistence/postgresql/repositories/product.repository';
+import { PurchaseFiscalNoteRepository } from '../../../infrastructure/persistence/typeorm/repositories/purchase-fiscal-note.repository';
+import { ProductRepository } from '../../../infrastructure/persistence/typeorm/repositories/product.repository';
 
 export interface RegisterPurchaseNoteItemDto {
   productId: string;

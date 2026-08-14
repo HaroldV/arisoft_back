@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { RefreshTokenRepository } from '../../../infrastructure/persistence/postgresql/repositories/refresh-token.repository';
+import { RefreshTokenRepository } from '../../../infrastructure/persistence/typeorm/repositories/refresh-token.repository';
 
 @Injectable()
 export class LogoutUseCase {

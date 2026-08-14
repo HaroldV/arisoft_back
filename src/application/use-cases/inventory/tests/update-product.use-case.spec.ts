@@ -1,14 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, ConflictException } from '@nestjs/common';
 import { UpdateProductUseCase } from '../update-product.use-case';
-import { ProductRepository } from '../../../../infrastructure/persistence/postgresql/repositories/product.repository';
-import { StockMoveRepository } from '../../../../infrastructure/persistence/postgresql/repositories/stock-move.repository';
+import { ProductRepository } from '../../../../infrastructure/persistence/typeorm/repositories/product.repository';
+import { StockMoveRepository } from '../../../../infrastructure/persistence/typeorm/repositories/stock-move.repository';
+import { CategoryRepository } from '../../../../infrastructure/persistence/typeorm/repositories/category.repository';
 import { Product } from '../../../../domain/entities/product.entity';
 
 describe('UpdateProductUseCase', () => {
   let useCase: UpdateProductUseCase;
   let productRepo: jest.Mocked<ProductRepository>;
   let stockMoveRepo: jest.Mocked<StockMoveRepository>;
+  let categoryRepo: jest.Mocked<CategoryRepository>;
 
   const productId = 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33';
   const otherProductId = 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a44';
@@ -22,18 +24,23 @@ describe('UpdateProductUseCase', () => {
     const mockStockMoveRepo = {
       hasSales: jest.fn(),
     };
+    const mockCategoryRepo = {
+      findOrCreateByName: jest.fn().mockResolvedValue({ id: 'cat-id', name: 'General' }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UpdateProductUseCase,
         { provide: ProductRepository, useValue: mockProductRepo },
         { provide: StockMoveRepository, useValue: mockStockMoveRepo },
+        { provide: CategoryRepository, useValue: mockCategoryRepo },
       ],
     }).compile();
 
     useCase = module.get<UpdateProductUseCase>(UpdateProductUseCase);
     productRepo = module.get(ProductRepository);
     stockMoveRepo = module.get(StockMoveRepository);
+    categoryRepo = module.get(CategoryRepository);
   });
 
   it('should throw NotFoundException if product does not exist', async () => {

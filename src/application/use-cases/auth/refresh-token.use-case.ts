@@ -1,9 +1,10 @@
 import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { IUserRepository } from '../../../domain/repositories/user.repository.interface';
-import { RefreshTokenRepository } from '../../../infrastructure/persistence/postgresql/repositories/refresh-token.repository';
-import { TenantRepository } from '../../../infrastructure/persistence/postgresql/repositories/tenant.repository';
+import { RefreshTokenRepository } from '../../../infrastructure/persistence/typeorm/repositories/refresh-token.repository';
+import { TenantRepository } from '../../../infrastructure/persistence/typeorm/repositories/tenant.repository';
 import { AuthService } from './auth.service';
+import { RoleRepository } from '../../../infrastructure/persistence/typeorm/repositories/role.repository';
 
 @Injectable()
 export class RefreshTokenUseCase {
@@ -13,6 +14,7 @@ export class RefreshTokenUseCase {
     private readonly refreshTokenRepository: RefreshTokenRepository,
     private readonly tenantRepository: TenantRepository,
     private readonly authService: AuthService,
+    private readonly roleRepository: RoleRepository,
   ) {}
 
   async execute(rawToken: string): Promise<any> {
@@ -51,17 +53,66 @@ export class RefreshTokenUseCase {
       throw new UnauthorizedException('User not found or inactive');
     }
 
-    // 5. Resolve Tenant and enabled modules
+    // 5. Resolve Tenant and fallback modules
     const tenant = await this.tenantRepository.findById(user.tenant_id);
-    const enabledModules = tenant?.settings?.enabled_modules || ['POS', 'INVENTORY'];
+    const tenantModules = tenant?.settings?.enabled_modules || ['POS', 'INVENTORY', 'SETTINGS', 'BANKS', 'PAYROLL'];
 
     // Calculate trial days left
     const expiresAtDate = tenant?.trial_expires_at ? new Date(tenant.trial_expires_at) : now;
     const diffTime = expiresAtDate.getTime() - now.getTime();
     const trialDaysLeft = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 
+    // Resolve user's resolved permissions for the session (custom roles + overrides)
+    let rolePermissions: string[] = [];
+    if (user.role_id) {
+      const role = await this.roleRepository.findById(user.role_id);
+      if (role) {
+        rolePermissions = role.allowed_permissions || [];
+      }
+    }
+
+    const resolvedPermissions = user.role === 'OWNER'
+      ? [
+          'pos:create', 'pos:discount', 'pos:refund', 'clients:manage',
+          'inventory:view', 'inventory:write', 'inventory:adjust', 'purchases:register', 'providers:manage',
+          'banks:view', 'banks:write', 'banks:transfer',
+          'users:manage', 'fiscal:manage', 'company:manage'
+        ]
+      : (user.allowed_permissions && user.allowed_permissions.length > 0)
+        ? user.allowed_permissions
+        : rolePermissions;
+
+    // Resolve enabled modules dynamically from resolved permissions
+    const permissionToModuleMap: Record<string, string> = {
+      'pos:create': 'POS',
+      'pos:discount': 'POS',
+      'pos:refund': 'POS',
+      'clients:manage': 'POS',
+      'inventory:view': 'INVENTORY',
+      'inventory:write': 'INVENTORY',
+      'inventory:adjust': 'INVENTORY',
+      'purchases:register': 'INVENTORY',
+      'providers:manage': 'INVENTORY',
+      'banks:view': 'BANKS',
+      'banks:write': 'BANKS',
+      'banks:transfer': 'BANKS',
+      'users:manage': 'SETTINGS',
+      'fiscal:manage': 'SETTINGS',
+      'company:manage': 'SETTINGS',
+    };
+
+    let enabledModules = tenantModules;
+    if (user.role !== 'OWNER') {
+      const resolvedModules = new Set<string>();
+      resolvedPermissions.forEach(perm => {
+        const mod = permissionToModuleMap[perm];
+        if (mod) resolvedModules.add(mod);
+      });
+      enabledModules = tenantModules.filter(mod => resolvedModules.has(mod));
+    }
+
     // 6. Generate new access and refresh tokens (Rotation)
-    const newAccessToken = await this.authService.generateAccessToken(user, enabledModules);
+    const newAccessToken = await this.authService.generateAccessToken(user, enabledModules, resolvedPermissions);
     const newRefreshToken = await this.authService.generateRefreshToken(user);
 
     // 7. Delete the old refresh token from database

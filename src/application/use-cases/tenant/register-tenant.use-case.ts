@@ -43,7 +43,8 @@ export class RegisterTenantUseCase {
       tenant.plan_type = 'TRIAL_90';
       tenant.trial_expires_at = trialExpiresAt;
       tenant.settings = { enabled_modules: ['POS', 'INVENTORY'] };
-      tenant.is_active = true;
+      tenant.is_active = true; // Empresa activa en el sistema
+      tenant.plan_is_active = false; // Sin plan comercial activo hasta comprarlo y ser aprobado
 
       const savedTenant = await manager.save(Tenant, tenant);
 

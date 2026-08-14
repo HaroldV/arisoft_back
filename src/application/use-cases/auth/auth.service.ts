@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { User } from '../../../domain/entities/user.entity';
+import { User, UserRole } from '../../../domain/entities/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -17,13 +17,23 @@ export class AuthService {
     return bcrypt.compare(password, hash);
   }
 
-  async generateAccessToken(user: User, enabledModules: string[] = []): Promise<string> {
+  async generateAccessToken(user: User, enabledModules: string[] = [], resolvedPermissions?: string[]): Promise<string> {
+    const permissions = resolvedPermissions || (user.role === UserRole.OWNER
+      ? [
+          'pos:create', 'pos:discount', 'pos:refund', 'clients:manage',
+          'inventory:view', 'inventory:write', 'inventory:adjust', 'purchases:register', 'providers:manage',
+          'banks:view', 'banks:write', 'banks:transfer',
+          'users:manage', 'fiscal:manage', 'company:manage'
+        ]
+      : user.allowed_permissions || []);
+
     const payload = {
       sub: user.id,
       email: user.email,
       tenant_id: user.tenant_id,
       role: user.role,
       enabled_modules: enabledModules,
+      permissions: permissions,
     };
     return this.jwtService.signAsync(payload);
   }

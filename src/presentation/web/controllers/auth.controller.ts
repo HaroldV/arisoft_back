@@ -26,7 +26,11 @@ export class AuthController {
   ) {}
 
   private extractRefreshToken(req: Request): string | undefined {
+    const bodyToken = req.body?.refresh_token;
+    if (bodyToken) return bodyToken;
+
     const cookiesHeader = req.headers.cookie || '';
+    if (!cookiesHeader) return undefined;
     const cookies = Object.fromEntries(
       cookiesHeader.split(';').map(c => {
         const parts = c.trim().split('=');
@@ -38,7 +42,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 5, ttl: 900000 } }) // Override global for Auth: 5 attempts / 15 min
+  @Throttle({ default: { limit: 20, ttl: 900000 } }) // Allow up to 20 requests per IP per 15 min; user-level 3 attempts logic handles account locking
   @ApiOperation({ summary: 'User login with automatic tenant resolution' })
   async login(
     @Body() loginDto: LoginDto,
@@ -55,9 +59,7 @@ export class AuthController {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days matching JWT expiration
     });
 
-    // Remove refresh_token from body response
-    const { refresh_token, ...rest } = result;
-    return rest;
+    return result;
   }
 
   @Post('register')

@@ -3,7 +3,7 @@ import { DataSource } from 'typeorm';
 import { BadRequestException } from '@nestjs/common';
 import { ConfigureFiscalRangeUseCase } from '../configure-fiscal-range.use-case';
 import { GetFiscalRangesUseCase } from '../get-fiscal-ranges.use-case';
-import { TenantFiscalRangeRepository } from '../../../../infrastructure/persistence/postgresql/repositories/tenant-fiscal-range.repository';
+import { TenantFiscalRangeRepository } from '../../../../infrastructure/persistence/typeorm/repositories/tenant-fiscal-range.repository';
 import { TenantFiscalRange } from '../../../../domain/entities/tenant-fiscal-range.entity';
 
 describe('Fiscal Ranges Use Cases', () => {

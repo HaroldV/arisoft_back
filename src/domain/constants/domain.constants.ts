@@ -1,0 +1,30 @@
+/**
+ * Centralized Domain Enums & Constants for Backend Business Rules
+ */
+
+export enum TenantStatusEnum {
+  ACTIVE = 'ACTIVE',
+  SUSPENDED = 'SUSPENDED',
+  TRIAL = 'TRIAL',
+}
+
+export enum RifTypeEnum {
+  JURIDICO = 'JURIDICO',
+  NATURAL_V = 'NATURAL_V',
+  NATURAL_E = 'NATURAL_E',
+  GUBERNAMENTAL = 'GUBERNAMENTAL',
+  PASAPORTE = 'PASAPORTE',
+}
+
+export enum SaasPlanEnum {
+  EMPRENDEDOR = 'EMPRENDEDOR',
+  COMERCIAL_PRO = 'COMERCIAL_PRO',
+  CORPORATIVO = 'CORPORATIVO',
+}
+
+export const BACKEND_SYSTEM_CONSTANTS = {
+  TRIAL_DAYS_STANDARD: 90,
+  ANNUAL_DAYS_STANDARD: 365,
+  SUBSCRIPTION_RENEWAL_DAYS: 30,
+  DEFAULT_PASSWORD_ONBOARDING: process.env.SAAS_DEFAULT_ONBOARDING_PASS || 'AriSaas2026!',
+};

@@ -4,9 +4,11 @@ import { PurchaseInvoice } from '../../../domain/entities/purchase-invoice.entit
 import { PurchaseItem } from '../../../domain/entities/purchase-item.entity';
 import { StockMove, StockMoveType } from '../../../domain/entities/stock-move.entity';
 import { Product } from '../../../domain/entities/product.entity';
-import { PurchaseInvoiceRepository } from '../../../infrastructure/persistence/postgresql/repositories/purchase-invoice.repository';
-import { ProductRepository } from '../../../infrastructure/persistence/postgresql/repositories/product.repository';
+import { PurchaseInvoiceRepository } from '../../../infrastructure/persistence/typeorm/repositories/purchase-invoice.repository';
+import { ProductRepository } from '../../../infrastructure/persistence/typeorm/repositories/product.repository';
 import { RegisterPurchaseDto } from './register-purchase.dto';
+import { AccountPayable } from '../../../domain/entities/account-payable.entity';
+import { AccountStatus } from '../../../domain/entities/account-receivable.entity';
 import { WarehouseLocation, LocationType } from '../../../domain/entities/warehouse-location.entity';
 import { ProductBatch } from '../../../domain/entities/product-batch.entity';
 import { StockBalance } from '../../../domain/entities/stock-balance.entity';
@@ -66,6 +68,25 @@ export class RegisterPurchaseUseCase {
         discount_percentage: discountPercentage,
         discount_amount_usd: discountAmountUsd,
       }));
+
+      // If purchase is on credit (isCredit or paymentTermsDays > 0), register in Cuentas por Pagar (AccountPayable)
+      if (dto.isCredit || (dto.paymentTermsDays && dto.paymentTermsDays > 0)) {
+        await manager.save(AccountPayable, new AccountPayable({
+          tenant_id: tenantId,
+          provider_id: dto.providerId || undefined,
+          provider_name: dto.supplierName.trim(),
+          reference_document_id: invoice.id,
+          reference_document_number: dto.invoiceNumber.trim(),
+          reference_date: new Date().toISOString().split('T')[0],
+          notes: `Compra a Crédito (${dto.paymentTermsDays || 30} días de plazo) - Factura #${dto.invoiceNumber.trim()}`,
+          previous_balance: 0,
+          period_amount: totalAmountUsd,
+          total_paid: 0,
+          balance_due: totalAmountUsd,
+          status: AccountStatus.PENDING,
+          created_by_user_id: userId,
+        }));
+      }
 
       // Process lines
       for (const item of dto.items) {

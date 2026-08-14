@@ -18,34 +18,35 @@ export class FiscalRangesController {
 
   @Get()
   @ApiOperation({ summary: 'Get configured fiscal ranges for the tenant' })
-  @ApiHeader({ name: 'x-tenant-id', required: true })
+  @ApiHeader({ name: 'x-tenant-id', required: false })
   async getRanges(
-    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
     @Req() req: any,
   ) {
-    if (!tenantId || !isUUID(tenantId)) {
-      throw new BadRequestException('x-tenant-id must be a valid UUID');
-    }
-    if (tenantId !== req.user.tenant_id) {
-      throw new ForbiddenException('Tenant ID does not match session');
-    }
+    this.validateTenant(headerTenantId, req);
     return this.getFiscalRangesUseCase.execute();
   }
 
   @Post()
   @ApiOperation({ summary: 'Configure or update a fiscal range' })
-  @ApiHeader({ name: 'x-tenant-id', required: true })
+  @ApiHeader({ name: 'x-tenant-id', required: false })
   async configureRange(
-    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
     @Body() dto: ConfigureFiscalRangeDto,
     @Req() req: any,
   ) {
-    if (!tenantId || !isUUID(tenantId)) {
+    const tenantId = this.validateTenant(headerTenantId, req);
+    return this.configureFiscalRangeUseCase.execute(tenantId, dto);
+  }
+
+  private validateTenant(tenantId: string, req: any): string {
+    const resolvedTenantId = tenantId || req.user?.tenant_id || req.headers?.['x-tenant-id'];
+    if (!resolvedTenantId || !isUUID(resolvedTenantId)) {
       throw new BadRequestException('x-tenant-id must be a valid UUID');
     }
-    if (tenantId !== req.user.tenant_id) {
+    if (req.user?.tenant_id && resolvedTenantId !== req.user.tenant_id) {
       throw new ForbiddenException('Tenant ID does not match session');
     }
-    return this.configureFiscalRangeUseCase.execute(tenantId, dto);
+    return resolvedTenantId;
   }
 }

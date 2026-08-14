@@ -41,6 +41,9 @@ export class StockMove {
   justification?: string;
 
   @Column({ type: 'uuid', nullable: true })
+  warehouse_location_id?: string;
+
+  @Column({ type: 'uuid', nullable: true })
   created_by_user_id?: string;
 
   @CreateDateColumn()

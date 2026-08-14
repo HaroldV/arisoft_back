@@ -7,6 +7,7 @@ export enum AppModule {
   WMS = 'WMS',
   REPORTS = 'REPORTS',
   SETTINGS = 'SETTINGS',
+  BANKS = 'BANKS',
 }
 
 export const MODULES_KEY = 'modules';

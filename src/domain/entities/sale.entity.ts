@@ -29,6 +29,12 @@ export class Sale {
   @Column({ type: 'varchar', nullable: true })
   control_number?: string;
 
+  @Column({ name: 'payment_method', type: 'varchar', nullable: true })
+  payment_method?: string;
+
+  @Column({ type: 'uuid', nullable: true })
+  shift_id?: string;
+
   @CreateDateColumn()
   created_at: Date;
 

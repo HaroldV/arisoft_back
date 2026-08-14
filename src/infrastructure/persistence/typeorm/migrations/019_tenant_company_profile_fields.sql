@@ -1,0 +1,10 @@
+-- Migration: Add SENIAT compliance fields to TENANTS
+ALTER TABLE tenants 
+    ADD COLUMN IF NOT EXISTS commercial_name VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS fiscal_address TEXT,
+    ADD COLUMN IF NOT EXISTS phone VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS email VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS taxpayer_type VARCHAR(50) DEFAULT 'ORDINARY' CHECK (taxpayer_type IN ('ORDINARY', 'SPECIAL', 'FORMAL')),
+    ADD COLUMN IF NOT EXISTS is_withholding_agent BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS logo_url TEXT,
+    ADD COLUMN IF NOT EXISTS receipt_footer TEXT;

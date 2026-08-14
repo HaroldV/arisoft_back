@@ -2,10 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException } from '@nestjs/common';
 import { LoginUseCase } from './login.use-case';
 import { IUserRepository } from '../../../domain/repositories/user.repository.interface';
-import { TenantRepository } from '../../../infrastructure/persistence/postgresql/repositories/tenant.repository';
+import { TenantRepository } from '../../../infrastructure/persistence/typeorm/repositories/tenant.repository';
 import { AuthService } from './auth.service';
 import { User, UserRole } from '../../../domain/entities/user.entity';
-import { RefreshTokenRepository } from '../../../infrastructure/persistence/postgresql/repositories/refresh-token.repository';
+import { RefreshTokenRepository } from '../../../infrastructure/persistence/typeorm/repositories/refresh-token.repository';
+import { RoleRepository } from '../../../infrastructure/persistence/typeorm/repositories/role.repository';
 
 describe('LoginUseCase', () => {
   let useCase: LoginUseCase;
@@ -53,6 +54,9 @@ describe('LoginUseCase', () => {
       delete: jest.fn(),
       deleteByUserId: jest.fn(),
     };
+    const mockRoleRepository = {
+      findById: jest.fn().mockResolvedValue(null),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -61,6 +65,7 @@ describe('LoginUseCase', () => {
         { provide: TenantRepository, useValue: mockTenantRepository },
         { provide: RefreshTokenRepository, useValue: mockRefreshTokenRepository },
         { provide: AuthService, useValue: mockAuthService },
+        { provide: RoleRepository, useValue: mockRoleRepository },
       ],
     }).compile();
 
@@ -103,8 +108,9 @@ describe('LoginUseCase', () => {
     ).rejects.toThrow(UnauthorizedException);
   });
 
-  it('should throw UnauthorizedException if password is incorrect', async () => {
-    userRepository.findByEmail.mockResolvedValue(mockUser);
+  it('should throw UnauthorizedException and track attempts when password is incorrect', async () => {
+    const userToFail = new User({ ...mockUser, failed_login_attempts: 0 });
+    userRepository.findByEmail.mockResolvedValue(userToFail);
     authService.comparePassword.mockResolvedValue(false);
 
     await expect(
@@ -112,7 +118,27 @@ describe('LoginUseCase', () => {
         email: 'test@example.com',
         password: 'wrong_password',
       }),
-    ).rejects.toThrow(UnauthorizedException);
+    ).rejects.toThrow('Correo o contraseña incorrectos. Llevas 1 de 3 intentos. Te quedan 2 intentos.');
+
+    expect(userToFail.failed_login_attempts).toBe(1);
+    expect(userRepository.save).toHaveBeenCalledWith(userToFail);
+  });
+
+  it('should lock user account and deactivate on 3rd failed attempt', async () => {
+    const userToLock = new User({ ...mockUser, failed_login_attempts: 2 });
+    userRepository.findByEmail.mockResolvedValue(userToLock);
+    authService.comparePassword.mockResolvedValue(false);
+
+    await expect(
+      useCase.execute({
+        email: 'test@example.com',
+        password: 'wrong_password',
+      }),
+    ).rejects.toThrow('Tu cuenta ha sido desactivada por alcanzar 3 intentos fallidos. Contacta al Administrador.');
+
+    expect(userToLock.failed_login_attempts).toBe(3);
+    expect(userToLock.is_active).toBe(false);
+    expect(userRepository.save).toHaveBeenCalledWith(userToLock);
   });
 
   it('should throw UnauthorizedException if user is inactive', async () => {

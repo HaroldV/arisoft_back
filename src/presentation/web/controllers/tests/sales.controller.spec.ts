@@ -1,6 +1,6 @@
 import { SalesController } from '../sales.controller';
 import { CreateSaleUseCase } from '../../../../application/use-cases/pos/create-sale.use-case';
-import { SaleRepository } from '../../../../infrastructure/persistence/postgresql/repositories/sale.repository';
+import { SaleRepository } from '../../../../infrastructure/persistence/typeorm/repositories/sale.repository';
 import { NotFoundException } from '@nestjs/common';
 
 describe('SalesController', () => {
@@ -94,7 +94,11 @@ describe('SalesController', () => {
 
     expect(createSaleUseCase.execute).toHaveBeenCalledWith(
       tenantId,
-      'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      {
+        id: 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+        role: undefined,
+        permissions: [],
+      },
       dto,
     );
   });

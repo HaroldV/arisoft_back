@@ -10,9 +10,9 @@ import { StockMove, StockMoveType } from '../../../domain/entities/stock-move.en
 import { StockBalance } from '../../../domain/entities/stock-balance.entity';
 import { WarehouseLocation } from '../../../domain/entities/warehouse-location.entity';
 import { FiscalAuditLog } from '../../../domain/entities/fiscal-audit-log.entity';
-import { TenantFiscalRangeRepository } from '../../../infrastructure/persistence/postgresql/repositories/tenant-fiscal-range.repository';
-import { SalesFiscalNoteRepository } from '../../../infrastructure/persistence/postgresql/repositories/sales-fiscal-note.repository';
-import { ProductRepository } from '../../../infrastructure/persistence/postgresql/repositories/product.repository';
+import { TenantFiscalRangeRepository } from '../../../infrastructure/persistence/typeorm/repositories/tenant-fiscal-range.repository';
+import { SalesFiscalNoteRepository } from '../../../infrastructure/persistence/typeorm/repositories/sales-fiscal-note.repository';
+import { ProductRepository } from '../../../infrastructure/persistence/typeorm/repositories/product.repository';
 
 export interface EmitSalesNoteItemDto {
   productId: string;

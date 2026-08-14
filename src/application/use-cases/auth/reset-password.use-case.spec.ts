@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ResetPasswordUseCase } from './reset-password.use-case';
 import { IUserRepository } from '../../../domain/repositories/user.repository.interface';
-import { PasswordResetTokenRepository } from '../../../infrastructure/persistence/postgresql/repositories/password-reset-token.repository';
+import { PasswordResetTokenRepository } from '../../../infrastructure/persistence/typeorm/repositories/password-reset-token.repository';
 import { AuthService } from './auth.service';
 import { User, UserRole } from '../../../domain/entities/user.entity';
 

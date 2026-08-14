@@ -119,4 +119,22 @@ export class RegisterPurchaseDto {
   @Min(0)
   @Max(100)
   discountPercentage?: number;
+
+  @ApiProperty({
+    description: 'Indica si la compra es a crédito (generará registro en Cuentas por Pagar)',
+    example: true,
+    required: false,
+  })
+  @IsOptional()
+  isCredit?: boolean;
+
+  @ApiProperty({
+    description: 'Días de plazo de pago para la compra a crédito (ej: 15, 30, 45 días)',
+    example: 30,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  paymentTermsDays?: number;
 }

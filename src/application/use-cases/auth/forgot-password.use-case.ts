@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { IUserRepository } from '../../../domain/repositories/user.repository.interface';
-import { PasswordResetTokenRepository } from '../../../infrastructure/persistence/postgresql/repositories/password-reset-token.repository';
+import { PasswordResetTokenRepository } from '../../../infrastructure/persistence/typeorm/repositories/password-reset-token.repository';
 import { ForgotPasswordDto } from './forgot-password.dto';
 
 @Injectable()

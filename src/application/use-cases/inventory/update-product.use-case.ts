@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { ProductRepository } from '../../../infrastructure/persistence/postgresql/repositories/product.repository';
-import { StockMoveRepository } from '../../../infrastructure/persistence/postgresql/repositories/stock-move.repository';
+import { ProductRepository } from '../../../infrastructure/persistence/typeorm/repositories/product.repository';
+import { StockMoveRepository } from '../../../infrastructure/persistence/typeorm/repositories/stock-move.repository';
+import { CategoryRepository } from '../../../infrastructure/persistence/typeorm/repositories/category.repository';
 import { UpdateProductDto } from './update-product.dto';
 import { Product } from '../../../domain/entities/product.entity';
 
@@ -9,9 +10,10 @@ export class UpdateProductUseCase {
   constructor(
     private readonly productRepo: ProductRepository,
     private readonly stockMoveRepo: StockMoveRepository,
+    private readonly categoryRepo: CategoryRepository,
   ) {}
 
-  async execute(productId: string, dto: UpdateProductDto): Promise<Product> {
+  async execute(productId: string, dto: UpdateProductDto, user?: { id: string; name?: string }): Promise<Product> {
     // 1. Fetch product
     const product = await this.productRepo.findById(productId);
     if (!product) {
@@ -44,9 +46,26 @@ export class UpdateProductUseCase {
     // 4. Map updates
     if (dto.name !== undefined) product.name = dto.name.trim();
     if (dto.description !== undefined) product.description = dto.description;
+    if (dto.imageUrl !== undefined || dto.image_url !== undefined) {
+      product.image_url = dto.imageUrl || dto.image_url || undefined;
+    }
     if (dto.costUsd !== undefined) product.cost_usd = dto.costUsd;
     if (dto.priceUsd !== undefined) product.price_usd = dto.priceUsd;
     if (dto.taxRate !== undefined) product.tax_rate = dto.taxRate;
+    if (dto.unitOfMeasure !== undefined) product.unit_of_measure = dto.unitOfMeasure;
+    if (dto.categoryId !== undefined) {
+      product.category_id = dto.categoryId || null;
+    } else if (dto.category !== undefined) {
+      const cat = await this.categoryRepo.findOrCreateByName(dto.category);
+      product.category_id = cat.id;
+    }
+    if (dto.variations !== undefined) product.variations = dto.variations;
+    if (dto.advancedFields !== undefined) product.advanced_fields = dto.advancedFields;
+
+    if (user) {
+      product.updated_by_user_id = user.id;
+      product.updated_by_user_name = user.name;
+    }
 
     // 5. Save changes
     return this.productRepo.save(product);

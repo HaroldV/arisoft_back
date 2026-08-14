@@ -3,8 +3,8 @@ import { BulkUploadProductsUseCase } from '../../../../application/use-cases/inv
 import { RegisterPurchaseUseCase } from '../../../../application/use-cases/inventory/register-purchase.use-case';
 import { UpdateProductUseCase } from '../../../../application/use-cases/inventory/update-product.use-case';
 import { DeleteProductUseCase } from '../../../../application/use-cases/inventory/delete-product.use-case';
-import { ProductRepository } from '../../../../infrastructure/persistence/postgresql/repositories/product.repository';
-import { PurchaseInvoiceRepository } from '../../../../infrastructure/persistence/postgresql/repositories/purchase-invoice.repository';
+import { ProductRepository } from '../../../../infrastructure/persistence/typeorm/repositories/product.repository';
+import { PurchaseInvoiceRepository } from '../../../../infrastructure/persistence/typeorm/repositories/purchase-invoice.repository';
 import { NotFoundException } from '@nestjs/common';
 
 describe('InventoryController', () => {
@@ -33,15 +33,31 @@ describe('InventoryController', () => {
       findNotesList: jest.fn(),
       findNoteDetails: jest.fn(),
     } as any;
+    const createStockAdjustmentUseCase = {
+      execute: jest.fn(),
+      executeTransfer: jest.fn(),
+    } as any;
+    const stockMoveRepo = {
+      findAllFiltered: jest.fn(),
+      save: jest.fn(),
+      getCurrentStock: jest.fn(),
+    } as any;
+    const snapshotService = {
+      generateDailySnapshot: jest.fn(),
+      getValuationReport: jest.fn(),
+    } as any;
     controller = new InventoryController(
       useCase,
       registerPurchaseUseCase,
       registerPurchaseNoteUseCase,
       updateUseCase,
       deleteUseCase,
+      createStockAdjustmentUseCase,
       productRepo,
       purchaseInvoiceRepo,
-      purchaseFiscalNoteRepo
+      purchaseFiscalNoteRepo,
+      stockMoveRepo,
+      snapshotService,
     );
   });
 
@@ -133,7 +149,7 @@ describe('InventoryController', () => {
 
     await controller.createProduct(tenantId, [dto], mockRequest as any);
 
-    expect(useCase.execute).toHaveBeenCalledWith(tenantId, [dto]);
+    expect(useCase.execute).toHaveBeenCalledWith(tenantId, [dto], expect.anything());
   });
 
   it('should call execute on registerPurchaseUseCase when registering purchase', async () => {

@@ -2,14 +2,16 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { CreateSaleUseCase } from '../create-sale.use-case';
-import { SaleRepository } from '../../../../infrastructure/persistence/postgresql/repositories/sale.repository';
-import { ProductRepository } from '../../../../infrastructure/persistence/postgresql/repositories/product.repository';
-import { StockMoveRepository } from '../../../../infrastructure/persistence/postgresql/repositories/stock-move.repository';
-import { TenantRepository } from '../../../../infrastructure/persistence/postgresql/repositories/tenant.repository';
+import { SaleRepository } from '../../../../infrastructure/persistence/typeorm/repositories/sale.repository';
+import { ProductRepository } from '../../../../infrastructure/persistence/typeorm/repositories/product.repository';
+import { StockMoveRepository } from '../../../../infrastructure/persistence/typeorm/repositories/stock-move.repository';
+import { TenantRepository } from '../../../../infrastructure/persistence/typeorm/repositories/tenant.repository';
 import { Product } from '../../../../domain/entities/product.entity';
 import { Tenant } from '../../../../domain/entities/tenant.entity';
 import { StockMoveType } from '../../../../domain/entities/stock-move.entity';
-import { TenantFiscalRangeRepository } from '../../../../infrastructure/persistence/postgresql/repositories/tenant-fiscal-range.repository';
+import { TenantFiscalRangeRepository } from '../../../../infrastructure/persistence/typeorm/repositories/tenant-fiscal-range.repository';
+import { CashShiftRepository } from '../../../../infrastructure/persistence/typeorm/repositories/cash-shift.repository';
+import { CashShift } from '../../../../domain/entities/cash-shift.entity';
 
 describe('CreateSaleUseCase', () => {
   let useCase: CreateSaleUseCase;
@@ -44,6 +46,9 @@ describe('CreateSaleUseCase', () => {
     const mockTenantFiscalRangeRepo = {
       getNextRangeNumbers: jest.fn().mockResolvedValue({ documentNumber: 'FACT-00000001', controlNumber: '00-00000001' }),
     };
+    const mockCashShiftRepo = {
+      findActiveShift: jest.fn().mockResolvedValue(new CashShift({ id: 'active-shift-id', status: 'OPEN' })),
+    };
 
     mockManager = {
       save: jest.fn().mockImplementation(async (entityClass, data) => ({ ...data, id: 'saved-sale-id' })),
@@ -61,6 +66,7 @@ describe('CreateSaleUseCase', () => {
         { provide: StockMoveRepository, useValue: mockStockMoveRepo },
         { provide: TenantRepository, useValue: mockTenantRepo },
         { provide: TenantFiscalRangeRepository, useValue: mockTenantFiscalRangeRepo },
+        { provide: CashShiftRepository, useValue: mockCashShiftRepo },
         { provide: DataSource, useValue: mockDataSource },
       ],
     }).compile();
@@ -94,11 +100,11 @@ describe('CreateSaleUseCase', () => {
     stockMap.set(productId2, 2);
     stockMoveRepo.getCurrentStocks.mockResolvedValue(stockMap);
 
-    const result = await useCase.execute(tenantId, userId, dto);
+    const result = await useCase.execute(tenantId, { id: userId, role: 'CASHIER', permissions: [] }, dto);
 
     expect(result.message).toBe('Sale registered successfully');
     expect(result.totalAmountUsd).toBe(2 * 10 + 1 * 20); // 40
-    expect(mockManager.save).toHaveBeenCalledTimes(5); // 1 Sale + 2 SaleItem + 2 StockMove
+    expect(mockManager.save).toHaveBeenCalledTimes(6); // 1 Sale + 2 SaleItem + 2 StockMove + 1 SalePayment
   });
 
   it('should throw BadRequestException if stock is insufficient and allow_negative_stock is false', async () => {
@@ -114,7 +120,7 @@ describe('CreateSaleUseCase', () => {
     stockMap.set(productId1, 5); // only 5 available
     stockMoveRepo.getCurrentStocks.mockResolvedValue(stockMap);
 
-    await expect(useCase.execute(tenantId, userId, dto)).rejects.toThrow(BadRequestException);
+    await expect(useCase.execute(tenantId, { id: userId, role: 'CASHIER', permissions: [] }, dto)).rejects.toThrow(BadRequestException);
   });
 
   it('should successfully sell with negative stock if allow_negative_stock is true and justification is provided', async () => {
@@ -131,7 +137,7 @@ describe('CreateSaleUseCase', () => {
     stockMap.set(productId1, 2); // only 2 available, remanent is -8
     stockMoveRepo.getCurrentStocks.mockResolvedValue(stockMap);
 
-    const result = await useCase.execute(tenantId, userId, dto);
+    const result = await useCase.execute(tenantId, { id: userId, role: 'CASHIER', permissions: [] }, dto);
 
     expect(result.message).toBe('Sale registered successfully');
     expect(mockManager.save).toHaveBeenCalledWith(
@@ -156,6 +162,35 @@ describe('CreateSaleUseCase', () => {
     stockMap.set(productId1, 2);
     stockMoveRepo.getCurrentStocks.mockResolvedValue(stockMap);
 
-    await expect(useCase.execute(tenantId, userId, dto)).rejects.toThrow(BadRequestException);
+    await expect(useCase.execute(tenantId, { id: userId, role: 'CASHIER', permissions: [] }, dto)).rejects.toThrow(BadRequestException);
+  });
+
+  it('should apply discount successfully if user has permission pos:discount', async () => {
+    const dto = {
+      discountPercent: 10,
+      items: [{ productId: productId1, quantity: 2 }],
+    };
+
+    const tenant = Object.assign(new Tenant(), { id: tenantId, settings: { allow_negative_stock: false } });
+    tenantRepo.findById.mockResolvedValue(tenant);
+    productRepo.findByIds.mockResolvedValue([new Product({ id: productId1, price_usd: 10, cost_usd: 8 } as any)]);
+
+    const stockMap = new Map<string, number>();
+    stockMap.set(productId1, 5);
+    stockMoveRepo.getCurrentStocks.mockResolvedValue(stockMap);
+
+    const result = await useCase.execute(tenantId, { id: userId, role: 'CASHIER', permissions: ['pos:discount'] }, dto);
+    expect(result.totalAmountUsd).toBe(18); // (2 * 10) * 0.9 = 18
+  });
+
+  it('should throw BadRequestException if user does not have permission pos:discount', async () => {
+    const dto = {
+      discountPercent: 10,
+      items: [{ productId: productId1, quantity: 2 }],
+    };
+
+    await expect(
+      useCase.execute(tenantId, { id: userId, role: 'CASHIER', permissions: [] }, dto)
+    ).rejects.toThrow(BadRequestException);
   });
 });

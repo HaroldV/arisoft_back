@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
 import { BulkUploadProductsUseCase } from '../bulk-upload-products.use-case';
-import { ProductRepository } from '../../../../infrastructure/persistence/postgresql/repositories/product.repository';
-import { StockMoveRepository } from '../../../../infrastructure/persistence/postgresql/repositories/stock-move.repository';
+import { ProductRepository } from '../../../../infrastructure/persistence/typeorm/repositories/product.repository';
+import { StockMoveRepository } from '../../../../infrastructure/persistence/typeorm/repositories/stock-move.repository';
 import { StockMoveType } from '../../../../domain/entities/stock-move.entity';
 import { Product } from '../../../../domain/entities/product.entity';
 
@@ -72,7 +72,7 @@ describe('BulkUploadProductsUseCase', () => {
 
     expect(result.success).toHaveLength(1);
     expect(result.success[0].sku).toBe('SKU-1');
-    expect(mockManager.save).toHaveBeenCalledTimes(3);
+    expect(mockManager.save).toHaveBeenCalledTimes(2);
   });
 
   it('should maintain tenant isolation (AC: #1)', async () => {
@@ -111,6 +111,6 @@ describe('BulkUploadProductsUseCase', () => {
     const result = await useCase.execute(tenantId, products);
 
     expect(result.errors).toHaveLength(1);
-    expect(result.errors[0].error).toContain('SKU already exists');
+    expect(result.errors[0].reason).toContain('SKU already exists');
   });
 });

@@ -3,11 +3,13 @@ import { DataSource } from 'typeorm';
 import { Sale } from '../../../domain/entities/sale.entity';
 import { SaleItem } from '../../../domain/entities/sale-item.entity';
 import { StockMove, StockMoveType } from '../../../domain/entities/stock-move.entity';
-import { SaleRepository } from '../../../infrastructure/persistence/postgresql/repositories/sale.repository';
-import { ProductRepository } from '../../../infrastructure/persistence/postgresql/repositories/product.repository';
-import { StockMoveRepository } from '../../../infrastructure/persistence/postgresql/repositories/stock-move.repository';
-import { TenantRepository } from '../../../infrastructure/persistence/postgresql/repositories/tenant.repository';
-import { TenantFiscalRangeRepository } from '../../../infrastructure/persistence/postgresql/repositories/tenant-fiscal-range.repository';
+import { SalePayment } from '../../../domain/entities/sale-payment.entity';
+import { SaleRepository } from '../../../infrastructure/persistence/typeorm/repositories/sale.repository';
+import { ProductRepository } from '../../../infrastructure/persistence/typeorm/repositories/product.repository';
+import { StockMoveRepository } from '../../../infrastructure/persistence/typeorm/repositories/stock-move.repository';
+import { TenantRepository } from '../../../infrastructure/persistence/typeorm/repositories/tenant.repository';
+import { TenantFiscalRangeRepository } from '../../../infrastructure/persistence/typeorm/repositories/tenant-fiscal-range.repository';
+import { CashShiftRepository } from '../../../infrastructure/persistence/typeorm/repositories/cash-shift.repository';
 import { FiscalDocType } from '../../../domain/entities/tenant-fiscal-range.entity';
 import { CreateSaleDto } from './create-sale.dto';
 
@@ -19,10 +21,25 @@ export class CreateSaleUseCase {
     private readonly stockMoveRepo: StockMoveRepository,
     private readonly tenantRepo: TenantRepository,
     private readonly tenantFiscalRangeRepo: TenantFiscalRangeRepository,
+    private readonly cashShiftRepo: CashShiftRepository,
     private readonly dataSource: DataSource,
   ) {}
 
-  async execute(tenantId: string, userId: string, dto: CreateSaleDto) {
+  async execute(tenantId: string, user: { id: string; role: string; permissions: string[] }, dto: CreateSaleDto) {
+    // 0. Validate active cashier shift (only enforced for CASHIER role)
+    const activeShift = await this.cashShiftRepo.findActiveShift(user.id);
+    if (user.role === 'CASHIER' && !activeShift) {
+      throw new BadRequestException('Debes tener un turno de caja activo abierto para realizar una venta.');
+    }
+
+    // Validate discount authorization
+    if (dto.discountPercent && dto.discountPercent > 0) {
+      if (user.role !== 'OWNER' && !user.permissions.includes('pos:discount')) {
+        throw new BadRequestException('No tienes permiso para aplicar descuentos en las ventas');
+      }
+    }
+
+    const userId = user.id;
     // 1. Load tenant settings
     const tenant = await this.tenantRepo.findById(tenantId);
     if (!tenant) {
@@ -85,6 +102,10 @@ export class CreateSaleUseCase {
         totalAmountUsd += item.quantity * prod.price_usd;
       }
 
+      if (dto.discountPercent && dto.discountPercent > 0) {
+        totalAmountUsd = totalAmountUsd * (1 - dto.discountPercent / 100);
+      }
+
       const exchangeRate = dto.exchangeRateApplied || 1.0;
 
       // Resolve next fiscal and control numbers inside transaction block
@@ -100,7 +121,63 @@ export class CreateSaleUseCase {
         client_id: dto.clientId || null,
         invoice_number: numbers.documentNumber,
         control_number: numbers.controlNumber,
+        payment_method: dto.paymentMethod || null,
+        shift_id: activeShift?.id || null,
       }));
+
+      // Save split payments
+      if (dto.payments && dto.payments.length > 0) {
+        for (const payment of dto.payments) {
+          const amtUsd = payment.currency === 'USD'
+            ? payment.amountOriginal
+            : Number((payment.amountOriginal / exchangeRate).toFixed(2));
+
+          await manager.save(SalePayment, new SalePayment({
+            tenant_id: tenantId,
+            sale_id: sale.id,
+            payment_method: payment.paymentMethod,
+            amount_original: payment.amountOriginal,
+            currency: payment.currency,
+            exchange_rate_applied: exchangeRate,
+            amount_usd: amtUsd,
+            transaction_reference: payment.transactionReference || null,
+          }));
+        }
+      } else {
+        // Fallback for backward compatibility/single payment
+        const defaultMethod = dto.paymentMethod || 'CASH_USD';
+        const defaultCurrency = defaultMethod.endsWith('VES') ? 'VES' : 'USD';
+        const defaultAmtOrig = defaultCurrency === 'USD'
+          ? totalAmountUsd
+          : Number((totalAmountUsd * exchangeRate).toFixed(2));
+
+        await manager.save(SalePayment, new SalePayment({
+          tenant_id: tenantId,
+          sale_id: sale.id,
+          payment_method: defaultMethod,
+          amount_original: defaultAmtOrig,
+          currency: defaultCurrency,
+          exchange_rate_applied: exchangeRate,
+          amount_usd: totalAmountUsd,
+        }));
+      }
+
+      // Save change if given
+      if (dto.change) {
+        const changeAmtUsd = dto.change.currency === 'USD'
+          ? dto.change.amountOriginal
+          : Number((dto.change.amountOriginal / exchangeRate).toFixed(2));
+
+        await manager.save(SalePayment, new SalePayment({
+          tenant_id: tenantId,
+          sale_id: sale.id,
+          payment_method: 'CHANGE_' + dto.change.currency,
+          amount_original: -dto.change.amountOriginal,
+          currency: dto.change.currency,
+          exchange_rate_applied: exchangeRate,
+          amount_usd: -changeAmtUsd,
+        }));
+      }
 
       // Process items and stock movements
       for (const item of dto.items) {

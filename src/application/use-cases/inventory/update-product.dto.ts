@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, Min, Max } from 'class-validator';
+import { IsOptional, IsString, IsNumber, Min, Max, IsArray } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateProductDto {
@@ -25,6 +25,18 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional({
+    description: 'URL de la imagen del producto',
+    example: 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b',
+  })
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  image_url?: string;
 
   @ApiPropertyOptional({
     description: 'Costo unitario de adquisición en USD',
@@ -57,4 +69,63 @@ export class UpdateProductDto {
   @Min(0)
   @Max(100)
   taxRate?: number;
+
+  @ApiPropertyOptional({
+    description: 'Unidad de medida a actualizar',
+    example: 'kg',
+  })
+  @IsOptional()
+  @IsString()
+  unitOfMeasure?: string;
+
+  @ApiPropertyOptional({
+    description: 'Categoría a actualizar (Nombre)',
+    example: 'Alimentos',
+  })
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @ApiPropertyOptional({
+    description: 'ID de Categoría a actualizar (UUID)',
+    example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+  })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Variaciones del producto',
+  })
+  @IsOptional()
+  @IsArray()
+  variations?: any[];
+
+  @ApiPropertyOptional({
+    description: 'Campos avanzados estructurados',
+  })
+  @IsOptional()
+  advancedFields?: any;
+
+  @ApiPropertyOptional({
+    description: 'Tipo de impuesto a actualizar (TAXABLE, EXEMPT, EXONERATED)',
+    example: 'TAXABLE',
+  })
+  @IsOptional()
+  @IsString()
+  taxType?: string;
+
+  @ApiPropertyOptional({
+     description: 'Indica si el producto es perecedero',
+     example: false,
+  })
+  @IsOptional()
+  isPerishable?: boolean;
+
+  @ApiPropertyOptional({
+     description: 'Indica si el producto tiene control de lotes',
+     example: false,
+  })
+  @IsOptional()
+  hasBatchControl?: boolean;
 }

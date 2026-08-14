@@ -2,10 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException } from '@nestjs/common';
 import { RefreshTokenUseCase } from './refresh-token.use-case';
 import { IUserRepository } from '../../../domain/repositories/user.repository.interface';
-import { RefreshTokenRepository } from '../../../infrastructure/persistence/postgresql/repositories/refresh-token.repository';
-import { TenantRepository } from '../../../infrastructure/persistence/postgresql/repositories/tenant.repository';
+import { RefreshTokenRepository } from '../../../infrastructure/persistence/typeorm/repositories/refresh-token.repository';
+import { TenantRepository } from '../../../infrastructure/persistence/typeorm/repositories/tenant.repository';
 import { AuthService } from './auth.service';
 import { User, UserRole } from '../../../domain/entities/user.entity';
+import { RoleRepository } from '../../../infrastructure/persistence/typeorm/repositories/role.repository';
 
 describe('RefreshTokenUseCase', () => {
   let useCase: RefreshTokenUseCase;
@@ -63,6 +64,9 @@ describe('RefreshTokenUseCase', () => {
       hashPassword: jest.fn(),
       comparePassword: jest.fn(),
     };
+    const mockRoleRepository = {
+      findById: jest.fn().mockResolvedValue(null),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -71,6 +75,7 @@ describe('RefreshTokenUseCase', () => {
         { provide: RefreshTokenRepository, useValue: mockRefreshTokenRepository },
         { provide: TenantRepository, useValue: mockTenantRepository },
         { provide: AuthService, useValue: mockAuthService },
+        { provide: RoleRepository, useValue: mockRoleRepository },
       ],
     }).compile();
 

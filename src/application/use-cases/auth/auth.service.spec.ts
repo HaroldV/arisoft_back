@@ -45,6 +45,7 @@ describe('AuthService', () => {
       tenant_id: mockUser.tenant_id,
       role: mockUser.role,
       enabled_modules: [],
+      permissions: [],
     });
   });
 

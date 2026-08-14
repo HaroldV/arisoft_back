@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { ProductRepository } from '../../../infrastructure/persistence/postgresql/repositories/product.repository';
-import { StockMoveRepository } from '../../../infrastructure/persistence/postgresql/repositories/stock-move.repository';
+import { ProductRepository } from '../../../infrastructure/persistence/typeorm/repositories/product.repository';
+import { StockMoveRepository } from '../../../infrastructure/persistence/typeorm/repositories/stock-move.repository';
 
 @Injectable()
 export class DeleteProductUseCase {

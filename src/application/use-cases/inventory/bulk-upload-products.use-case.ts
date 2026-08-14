@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { CreateProductDto } from './create-product.dto';
-import { ProductRepository } from '../../../infrastructure/persistence/postgresql/repositories/product.repository';
-import { StockMoveRepository } from '../../../infrastructure/persistence/postgresql/repositories/stock-move.repository';
+import { ProductRepository } from '../../../infrastructure/persistence/typeorm/repositories/product.repository';
+import { StockMoveRepository } from '../../../infrastructure/persistence/typeorm/repositories/stock-move.repository';
 import { StockMove, StockMoveType } from '../../../domain/entities/stock-move.entity';
 import { Product } from '../../../domain/entities/product.entity';
+import { Category } from '../../../domain/entities/category.entity';
+import { ProductBatch } from '../../../domain/entities/product-batch.entity';
+import { WarehouseLocation, LocationType } from '../../../domain/entities/warehouse-location.entity';
+import { StockBalance } from '../../../domain/entities/stock-balance.entity';
 
 @Injectable()
 export class BulkUploadProductsUseCase {
@@ -18,7 +22,7 @@ export class BulkUploadProductsUseCase {
    * execute
    * Purpose: Handle CSV data, validate SKUs, and perform atomic transaction insert.
    */
-  async execute(tenantId: string, products: CreateProductDto[]) {
+  async execute(tenantId: string, products: CreateProductDto[], user?: { id: string; name?: string }) {
     const results = {
       success: [],
       errors: [],
@@ -26,7 +30,6 @@ export class BulkUploadProductsUseCase {
 
     // 1. Sanitize input SKUs and check payload for internal duplicates
     const payloadSkus = products.map(p => (p.sku || '').trim());
-    const uniquePayloadSkus = new Set(payloadSkus);
     
     // 2. Fetch existing products matching these SKUs to prevent OOM
     const existingProducts = await this.productRepo.findBySkus(payloadSkus);
@@ -47,7 +50,40 @@ export class BulkUploadProductsUseCase {
               throw new Error(`SKU already exists: ${sanitizedSku}`);
             }
 
-            // Create Product entity (ignore current_stock since it's transient)
+            // Resolve Category ID
+            let resolvedCategoryId: string | null = null;
+            if (productData.categoryId) {
+              const cat = await manager.findOne(Category, {
+                where: [
+                  { id: productData.categoryId, tenant_id: tenantId },
+                  { id: productData.categoryId, tenant_id: null }
+                ]
+              });
+              if (cat) {
+                resolvedCategoryId = cat.id;
+              }
+            }
+
+            if (!resolvedCategoryId) {
+              const categoryName = (productData.category || 'General').trim();
+              let cat = await manager.createQueryBuilder(Category, 'c')
+                .where('LOWER(c.name) = LOWER(:name)', { name: categoryName })
+                .andWhere('(c.tenant_id = :tenantId OR c.tenant_id IS NULL)', { tenantId })
+                .orderBy('(c.tenant_id IS NOT NULL)', 'DESC')
+                .getOne();
+
+              if (!cat) {
+                cat = await manager.save(Category, new Category({
+                  tenant_id: tenantId,
+                  name: categoryName,
+                  code: null,
+                  is_active: true
+                }));
+              }
+              resolvedCategoryId = cat.id;
+            }
+
+            // Create Product entity
             const product = await manager.save(Product, new Product({
               tenant_id: tenantId,
               sku: sanitizedSku,
@@ -56,6 +92,16 @@ export class BulkUploadProductsUseCase {
               cost_usd: productData.costUsd,
               price_usd: productData.priceUsd,
               tax_rate: productData.taxRate,
+              tax_type: productData.taxType || 'TAXABLE',
+              is_perishable: productData.isPerishable || false,
+              has_batch_control: productData.hasBatchControl || false,
+              unit_of_measure: productData.unitOfMeasure || 'unidades',
+              category_id: resolvedCategoryId,
+              variations: productData.variations || [],
+              advanced_fields: productData.advancedFields || {},
+              image_url: productData.imageUrl || productData.image_url || null,
+              created_by_user_id: user?.id,
+              created_by_user_name: user?.name,
             }));
 
             // Create immutable initial stock movement
@@ -67,22 +113,22 @@ export class BulkUploadProductsUseCase {
               cost_at_time: productData.costUsd,
             }));
 
-            results.success.push({ sku: sanitizedSku, productId: product.id, moveId: move.id });
-            existingSkus.add(sanitizedSku);
-          } catch (error) {
-            results.errors.push({ line: index + 1, sku: productData.sku, error: error.message });
+            results.success.push({
+              line: index + 1,
+              sku: sanitizedSku,
+              productId: product.id,
+            });
+          } catch (err: any) {
+            results.errors.push({
+              line: index + 1,
+              sku: productData.sku || 'N/A',
+              reason: err.message,
+            });
           }
         }
-
-        // If any record failed, throw to rollback the entire transaction
-        if (results.errors.length > 0) {
-          throw new Error('ROLLBACK_ON_ERRORS');
-        }
       });
-    } catch (error) {
-      if (error.message !== 'ROLLBACK_ON_ERRORS') {
-        throw error;
-      }
+    } catch (txError: any) {
+      throw txError;
     }
 
     return results;
