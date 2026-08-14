@@ -28,22 +28,21 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Use Node.js 18.x
+    - name: Use Node.js 20.x
       uses: actions/setup-node@v4
       with:
-        node-version: 18.x
+        node-version: 20.x
         cache: 'npm'
 
     - name: Install dependencies
       run: npm ci
 
-    - name: Load schema to database
+    - name: Load schema migrations to database
       run: |
-        PGPASSWORD=ari_password_2026 psql -h localhost -p 5444 -U ari_admin -d ari_erp_db -f src/infrastructure/persistence/postgresql/migrations/001_initial_schema.sql
-        PGPASSWORD=ari_password_2026 psql -h localhost -p 5444 -U ari_admin -d ari_erp_db -f src/infrastructure/persistence/postgresql/migrations/002_password_reset_tokens.sql
-        PGPASSWORD=ari_password_2026 psql -h localhost -p 5444 -U ari_admin -d ari_erp_db -f src/infrastructure/persistence/postgresql/migrations/003_refresh_tokens.sql
-        PGPASSWORD=ari_password_2026 psql -h localhost -p 5444 -U ari_admin -d ari_erp_db -f src/infrastructure/persistence/postgresql/migrations/004_purchase_invoices.sql
-        PGPASSWORD=ari_password_2026 psql -h localhost -p 5444 -U ari_admin -d ari_erp_db -f src/infrastructure/persistence/postgresql/migrations/005_sale_items.sql
+        for file in $(ls src/infrastructure/persistence/typeorm/migrations/*.sql | sort); do
+          echo "Executing $file..."
+          PGPASSWORD=ari_password_2026 psql -h localhost -p 5444 -U ari_admin -d ari_erp_db -f "$file"
+        done
 
     - name: Run unit and integration tests
       run: npm run test
