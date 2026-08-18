@@ -56,6 +56,8 @@ import { RefreshToken } from './domain/entities/refresh-token.entity';
 import { RefreshTokenRepository } from './infrastructure/persistence/typeorm/repositories/refresh-token.repository';
 import { RefreshTokenUseCase } from './application/use-cases/auth/refresh-token.use-case';
 import { LogoutUseCase } from './application/use-cases/auth/logout.use-case';
+import { ExchangeRateService } from './infrastructure/finance/exchange-rate.service';
+import { BcvCronService } from './infrastructure/finance/bcv-cron.service';
 import { JwtStrategy } from './infrastructure/auth/strategies/jwt.strategy';
 import { JwtAuthGuard } from './infrastructure/auth/guards/jwt-auth.guard';
 import { Provider } from './domain/entities/provider.entity';
@@ -132,13 +134,17 @@ import { BulkUpdatePricesUseCase } from './application/use-cases/inventory/bulk-
 import { PurchasesController } from './presentation/web/controllers/purchases.controller';
 import { SuperAdminController } from './presentation/web/controllers/super-admin.controller';
 import { SaasPlan } from './domain/entities/saas-plan.entity';
-import { ExchangeRateService } from './infrastructure/finance/exchange-rate.service';
 import { SaasPlanManagementUseCase } from './application/use-cases/admin/saas-plan-management.use-case';
 
 import { SubscriptionPaymentReceipt } from './domain/entities/subscription-payment-receipt.entity';
 import { SubscriptionController } from './presentation/web/controllers/subscription.controller';
 import { RegisterSubscriptionPaymentUseCase } from './application/use-cases/subscription/register-subscription-payment.use-case';
 import { ApproveSubscriptionPaymentUseCase } from './application/use-cases/admin/approve-subscription-payment.use-case';
+
+import { SystemSetting } from './domain/entities/system-setting.entity';
+import { ExchangeRateHistory } from './domain/entities/exchange-rate-history.entity';
+import { SystemSettingRepository } from './infrastructure/persistence/typeorm/repositories/system-setting.repository';
+import { ExchangeRateHistoryRepository } from './infrastructure/persistence/typeorm/repositories/exchange-rate-history.repository';
 
 @Module({
   imports: [
@@ -155,12 +161,12 @@ import { ApproveSubscriptionPaymentUseCase } from './application/use-cases/admin
         username: configService.get<string>('DB_USER'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_NAME'),
-        entities: [User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan],
+        entities: [User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory],
         synchronize: false,
       }),
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan]),
+    TypeOrmModule.forFeature([User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -207,6 +213,9 @@ import { ApproveSubscriptionPaymentUseCase } from './application/use-cases/admin
     JwtStrategy,
     JwtAuthGuard,
     ExchangeRateService,
+    BcvCronService,
+    SystemSettingRepository,
+    ExchangeRateHistoryRepository,
     SaasPlanManagementUseCase,
     RegisterSubscriptionPaymentUseCase,
     ApproveSubscriptionPaymentUseCase,

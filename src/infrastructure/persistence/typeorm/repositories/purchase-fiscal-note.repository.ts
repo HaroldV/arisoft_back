@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { REQUEST } from '@nestjs/core';
 import { PurchaseFiscalNote } from '../../../../domain/entities/purchase-fiscal-note.entity';
 import { PurchaseFiscalNoteItem } from '../../../../domain/entities/purchase-fiscal-note-item.entity';
+import { PurchaseInvoice } from '../../../../domain/entities/purchase-invoice.entity';
 import { Provider } from '../../../../domain/entities/provider.entity';
 import { Product } from '../../../../domain/entities/product.entity';
 import { BaseTenantRepository } from './base-tenant.repository';
@@ -61,19 +62,16 @@ export class PurchaseFiscalNoteRepository extends BaseTenantRepository<PurchaseF
     if (!note) return null;
 
     // Get the provider information from the original purchase invoice
-    const rawInvoiceQuery = await this.purchaseFiscalNoteRepository.manager.query(
-      'SELECT provider_id FROM purchase_invoices WHERE id = $1',
-      [note.original_invoice_id]
-    );
+    const invoice = await this.purchaseFiscalNoteRepository.manager.findOne(PurchaseInvoice, {
+      where: { id: note.original_invoice_id },
+      select: ['id', 'provider_id'],
+    });
 
     let provider = null;
-    if (rawInvoiceQuery && rawInvoiceQuery.length > 0) {
-      const invoiceRow = rawInvoiceQuery[0];
-      if (invoiceRow.provider_id) {
-        provider = await this.purchaseFiscalNoteRepository.manager.findOne(Provider, {
-          where: { id: invoiceRow.provider_id },
-        });
-      }
+    if (invoice && invoice.provider_id) {
+      provider = await this.purchaseFiscalNoteRepository.manager.findOne(Provider, {
+        where: { id: invoice.provider_id },
+      });
     }
 
     const items = await this.purchaseFiscalNoteRepository.manager

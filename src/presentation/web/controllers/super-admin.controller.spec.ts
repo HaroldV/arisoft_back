@@ -8,6 +8,8 @@ import { ExchangeRateService } from '../../../infrastructure/finance/exchange-ra
 import { SaasPlanManagementUseCase } from '../../../application/use-cases/admin/saas-plan-management.use-case';
 import { ApproveSubscriptionPaymentUseCase } from '../../../application/use-cases/admin/approve-subscription-payment.use-case';
 
+import { ExchangeRateHistoryRepository } from '../../../infrastructure/persistence/typeorm/repositories/exchange-rate-history.repository';
+
 describe('SuperAdminController - SaaS Plans CRUD (Unit & Integration Tests)', () => {
   let controller: SuperAdminController;
   let mockPlanRepository: any;
@@ -55,6 +57,9 @@ describe('SuperAdminController - SaaS Plans CRUD (Unit & Integration Tests)', ()
 
     mockAuthService = {};
     mockExchangeRateService = {};
+    const mockExchangeRateHistoryRepository = {
+      findRecent: jest.fn().mockResolvedValue([]),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SuperAdminController],
@@ -62,7 +67,8 @@ describe('SuperAdminController - SaaS Plans CRUD (Unit & Integration Tests)', ()
         { provide: DataSource, useValue: mockDataSource },
         { provide: AuthService, useValue: mockAuthService },
         { provide: ExchangeRateService, useValue: mockExchangeRateService },
-        SaasPlanManagementUseCase,
+        { provide: ExchangeRateHistoryRepository, useValue: mockExchangeRateHistoryRepository },
+        { provide: SaasPlanManagementUseCase, useClass: SaasPlanManagementUseCase },
         { provide: ApproveSubscriptionPaymentUseCase, useValue: { execute: jest.fn() } },
       ],
     }).compile();
@@ -129,14 +135,54 @@ describe('SuperAdminController - SaaS Plans CRUD (Unit & Integration Tests)', ()
     });
   });
 
-  describe('PUT /admin/plans/:id/status (togglePlanStatus)', () => {
-    it('Debe alternar el estado activo/inactivo de un plan', async () => {
-      const plan = new SaasPlan({ id: 'plan-123', is_active: true });
-      mockPlanRepository.findOne.mockResolvedValue(plan);
-      mockPlanRepository.save.mockImplementation(async (p: SaasPlan) => p);
+  describe('GET & POST /admin/bcv (Dual Master Rate Management)', () => {
+    it('Debe consultar la matriz de tasas maestras vigente (USD y EUR)', async () => {
+      mockExchangeRateService.getCurrentMasterRate = jest.fn().mockResolvedValue({
+        USD: { rate: 772.54, code: 'USD', symbol: '$', name: 'Dólar Estadounidense' },
+        EUR: { rate: 894.49, code: 'EUR', symbol: '€', name: 'Euro' },
+        source: 'SAVED_STATE',
+        updated_at: '2026-08-17T12:00:00Z',
+      });
 
-      const res = await controller.togglePlanStatus('plan-123', { is_active: false });
-      expect(res.plan.is_active).toBe(false);
+      const result = await controller.getMasterBcvRate();
+      expect(result.USD.rate).toBe(772.54);
+      expect(result.EUR.rate).toBe(894.49);
+      expect(result.source).toBe('SAVED_STATE');
+    });
+
+    it('Debe sincronizar las tasas oficiales vía scraping dual', async () => {
+      mockExchangeRateService.getOfficialBcvRate = jest.fn().mockResolvedValue({
+        USD: { rate: 772.5441, code: 'USD', symbol: '$', name: 'Dólar Estadounidense' },
+        EUR: { rate: 894.4902, code: 'EUR', symbol: '€', name: 'Euro' },
+        source: 'AUTO_SCRAPING',
+        updated_at: '2026-08-17T12:00:00Z',
+        value_date: '17/08/2026',
+        execution_slot: 'MORNING',
+      });
+
+      const res = await controller.syncBcvRate();
+      expect(res.USD.rate).toBe(772.5441);
+      expect(res.EUR.rate).toBe(894.4902);
+      expect(res.source).toBe('AUTO_SCRAPING');
+      expect(res.message).toContain('USD');
+      expect(res.message).toContain('EUR');
+    });
+
+    it('Debe registrar manualmente las tasas y lanzar error si son inválidas', async () => {
+      await expect(controller.setManualBcvRate({ usd_rate: -5 })).rejects.toThrow(BadRequestException);
+      await expect(controller.setManualBcvRate({ eur_rate: -10 })).rejects.toThrow(BadRequestException);
+
+      mockExchangeRateService.setManualMasterRate = jest.fn().mockResolvedValue({
+        USD: { rate: 775.50, code: 'USD', symbol: '$', name: 'Dólar Estadounidense' },
+        EUR: { rate: 898.00, code: 'EUR', symbol: '€', name: 'Euro' },
+        source: 'MANUAL',
+        updated_at: '2026-08-17T12:05:00Z',
+      });
+
+      const res = await controller.setManualBcvRate({ usd_rate: 775.50, eur_rate: 898.00, note: 'Ajuste manual' });
+      expect(res.USD.rate).toBe(775.50);
+      expect(res.EUR.rate).toBe(898.00);
+      expect(res.source).toBe('MANUAL');
     });
   });
 });

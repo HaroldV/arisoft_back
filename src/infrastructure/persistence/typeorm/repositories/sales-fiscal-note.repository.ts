@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { REQUEST } from '@nestjs/core';
 import { SalesFiscalNote } from '../../../../domain/entities/sales-fiscal-note.entity';
 import { SalesFiscalNoteItem } from '../../../../domain/entities/sales-fiscal-note-item.entity';
+import { Sale } from '../../../../domain/entities/sale.entity';
 import { User } from '../../../../domain/entities/user.entity';
 import { Client } from '../../../../domain/entities/client.entity';
 import { Product } from '../../../../domain/entities/product.entity';
@@ -63,24 +64,23 @@ export class SalesFiscalNoteRepository extends BaseTenantRepository<SalesFiscalN
 
     // Get the client information through the original invoice if needed
     // First, let's find the original sale invoice
-    const rawSaleQuery = await this.salesFiscalNoteRepository.manager.query(
-      'SELECT client_id, user_id FROM sales WHERE id = $1',
-      [note.original_invoice_id]
-    );
+    const sale = await this.salesFiscalNoteRepository.manager.findOne(Sale, {
+      where: { id: note.original_invoice_id },
+      select: ['id', 'client_id', 'user_id'],
+    });
 
     let client = null;
     let cashier = null;
 
-    if (rawSaleQuery && rawSaleQuery.length > 0) {
-      const saleRow = rawSaleQuery[0];
-      if (saleRow.client_id) {
+    if (sale) {
+      if (sale.client_id) {
         client = await this.salesFiscalNoteRepository.manager.findOne(Client, {
-          where: { id: saleRow.client_id },
+          where: { id: sale.client_id },
         });
       }
-      if (saleRow.user_id) {
+      if (sale.user_id) {
         cashier = await this.salesFiscalNoteRepository.manager.findOne(User, {
-          where: { id: saleRow.user_id },
+          where: { id: sale.user_id },
         });
       }
     }

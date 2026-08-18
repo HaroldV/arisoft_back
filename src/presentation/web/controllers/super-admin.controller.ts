@@ -26,12 +26,14 @@ import { isUUID } from 'class-validator';
 import { SaasPlan } from '../../../domain/entities/saas-plan.entity';
 
 import { SaasPlanManagementUseCase } from '../../../application/use-cases/admin/saas-plan-management.use-case';
-import { TenantStatusEnum, SaasPlanEnum, BACKEND_SYSTEM_CONSTANTS } from '../../../domain/constants/domain.constants';
+import { TenantStatusEnum, SaasPlanEnum, BACKEND_SYSTEM_CONSTANTS, PLAN_DEFAULT_MODULES, PLAN_DEFAULT_PERMISSIONS } from '../../../domain/constants/domain.constants';
 import { RifValidator } from '../../../domain/utils/rif-validator.util';
 import { EmailValidator } from '../../../domain/utils/email-validator.util';
 
 import { ApproveSubscriptionPaymentUseCase } from '../../../application/use-cases/admin/approve-subscription-payment.use-case';
 import { SubscriptionPaymentReceipt } from '../../../domain/entities/subscription-payment-receipt.entity';
+
+import { ExchangeRateHistoryRepository } from '../../../infrastructure/persistence/typeorm/repositories/exchange-rate-history.repository';
 
 @ApiTags('Super Admin Backoffice')
 @ApiBearerAuth()
@@ -43,6 +45,7 @@ export class SuperAdminController {
     private readonly dataSource: DataSource,
     private readonly authService: AuthService,
     private readonly exchangeRateService: ExchangeRateService,
+    private readonly exchangeRateHistoryRepository: ExchangeRateHistoryRepository,
     private readonly saasPlanManagementUseCase: SaasPlanManagementUseCase,
     private readonly approveSubscriptionPaymentUseCase: ApproveSubscriptionPaymentUseCase,
   ) {}
@@ -189,20 +192,17 @@ export class SuperAdminController {
       tenant.trial_expires_at = trialExpiresAt;
       tenant.is_active = status !== TenantStatusEnum.SUSPENDED;
       
+      const selectedPlan = (plan_name as SaasPlanEnum) || SaasPlanEnum.COMERCIAL_PRO;
+      const defaultPlanModules = PLAN_DEFAULT_MODULES[selectedPlan] || PLAN_DEFAULT_MODULES[SaasPlanEnum.COMERCIAL_PRO];
+      const defaultPlanPermissions = PLAN_DEFAULT_PERMISSIONS[selectedPlan] || PLAN_DEFAULT_PERMISSIONS[SaasPlanEnum.COMERCIAL_PRO];
+
       tenant.settings = {
         subdomain: subdomain || name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-        max_users: Number(max_users || 10),
-        max_products: Number(max_products || 2500),
-        monthly_fee_usd: Number(monthly_fee_usd || 35),
-        enabled_modules: enabled_modules || ['POS', 'SALES', 'INVENTORY', 'BANKS', 'REPORTS'],
-        enabled_permissions: enabled_permissions || [
-          'pos:create', 'sales:invoicing', 'sales:quotations', 'sales:orders', 'sales:deliveries', 'clients:manage', 'pos:shifts',
-          'purchases:orders', 'purchases:receptions', 'purchases:new', 'purchases:invoices', 'providers:manage',
-          'inventory:create', 'inventory:stock', 'inventory:bulk_prices', 'inventory:valuation', 'inventory:warehouse', 'inventory:categories', 'inventory:moves',
-          'banks:accounts', 'accounts:receivables', 'accounts:payables', 'accounts:history',
-          'reports:view',
-          'company:manage', 'fiscal:manage', 'users:manage'
-        ],
+        max_users: Number(max_users || (selectedPlan === SaasPlanEnum.EMPRENDEDOR ? 2 : selectedPlan === SaasPlanEnum.COMERCIAL_PRO ? 5 : 25)),
+        max_products: Number(max_products || (selectedPlan === SaasPlanEnum.EMPRENDEDOR ? 500 : selectedPlan === SaasPlanEnum.COMERCIAL_PRO ? 3000 : 10000)),
+        monthly_fee_usd: Number(monthly_fee_usd || (selectedPlan === SaasPlanEnum.EMPRENDEDOR ? 15 : selectedPlan === SaasPlanEnum.COMERCIAL_PRO ? 35 : 60)),
+        enabled_modules: enabled_modules || defaultPlanModules,
+        enabled_permissions: enabled_permissions || defaultPlanPermissions,
         owner_email: cleanEmail,
         owner_name: owner_name || 'Gerente General'
       };
@@ -398,13 +398,59 @@ export class SuperAdminController {
     };
   }
 
+  @Get('bcv/rate')
+  @ApiOperation({ summary: 'Obtener las Tasas Maestras Globales BCV (USD / EUR) actualmente vigentes' })
+  async getMasterBcvRate() {
+    return this.exchangeRateService.getCurrentMasterRate();
+  }
+
+  @Get('bcv/history')
+  @ApiOperation({ summary: 'Obtener el historial de cambios de tasas de cambio oficial' })
+  async getExchangeRateHistory() {
+    return this.exchangeRateHistoryRepository.findRecent(50);
+  }
+
   @Post('bcv/sync')
-  @ApiOperation({ summary: 'Trigger manual exchange rate sync' })
+  @ApiOperation({ summary: 'Trigger manual exchange rate sync via live BCV web scraping (USD y EUR)' })
   async syncBcvRate() {
-    const rate = await this.exchangeRateService.getOfficialBcvRate();
+    const rateData = await this.exchangeRateService.getOfficialBcvRate();
     return {
-      rate,
-      timestamp: new Date().toISOString()
+      rates: rateData,
+      USD: rateData.USD,
+      EUR: rateData.EUR,
+      source: rateData.source,
+      updated_at: rateData.updated_at,
+      value_date: rateData.value_date,
+      execution_slot: rateData.execution_slot,
+      timestamp: new Date().toISOString(),
+      message: `Tasas sincronizadas: USD Bs. ${rateData.USD.rate.toFixed(2)} | EUR Bs. ${rateData.EUR.rate.toFixed(2)}`,
+    };
+  }
+
+  @Post('bcv/manual')
+  @ApiOperation({ summary: 'Registrar o corregir manualmente las Tasas Maestras Globales BCV (USD / EUR)' })
+  async setManualBcvRate(@Body() body: any) {
+    const usdRate = body?.usd_rate !== undefined ? Number(body.usd_rate) : (body?.rate !== undefined ? Number(body.rate) : undefined);
+    const eurRate = body?.eur_rate !== undefined ? Number(body.eur_rate) : undefined;
+    const valueDate = body?.value_date;
+    const note = body?.note;
+
+    if (usdRate !== undefined && (isNaN(usdRate) || usdRate <= 0)) {
+      throw new BadRequestException('La tasa USD debe ser un número positivo mayor a cero (ej. 772.54)');
+    }
+    if (eurRate !== undefined && (isNaN(eurRate) || eurRate <= 0)) {
+      throw new BadRequestException('La tasa EUR debe ser un número positivo mayor a cero (ej. 894.49)');
+    }
+
+    const saved = await this.exchangeRateService.setManualMasterRate({ usdRate, eurRate }, valueDate, note);
+    return {
+      rates: saved,
+      USD: saved.USD,
+      EUR: saved.EUR,
+      source: saved.source,
+      updated_at: saved.updated_at,
+      value_date: saved.value_date,
+      message: `Tasas Maestras actualizadas manualmente: USD Bs. ${saved.USD.rate.toFixed(2)} | EUR Bs. ${saved.EUR.rate.toFixed(2)}`,
     };
   }
 

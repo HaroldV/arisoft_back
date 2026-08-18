@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { SaasPlan } from '../../../domain/entities/saas-plan.entity';
+import { SaasPlanEnum, PLAN_DEFAULT_MODULES, PLAN_DEFAULT_PERMISSIONS } from '../../../domain/constants/domain.constants';
 
 export interface CreateSaasPlanDto {
   name: string;
@@ -49,55 +50,51 @@ export class SaasPlanManagementUseCase {
         new SaasPlan({
           code: 'EMPRENDEDOR',
           name: 'Emprendedor',
-          description: 'Para pequeños negocios y bodegones que inician digitalización',
+          description: 'Para pequeños comercios y bodegones que inician digitalización en mostrador',
           monthly_fee_usd: 15.00,
           annual_fee_usd: 150.00,
-          max_users: 3,
+          max_users: 2,
           max_products: 500,
           max_warehouses: 1,
           has_fiscal_printing: false,
           badge_text: 'Plan Inicial',
           is_featured: false,
           is_active: true,
-          enabled_modules: ['POS', 'INVENTORY'],
-          enabled_permissions: ['pos:create', 'sales:invoicing', 'inventory:stock', 'inventory:create'],
+          enabled_modules: PLAN_DEFAULT_MODULES[SaasPlanEnum.EMPRENDEDOR],
+          enabled_permissions: PLAN_DEFAULT_PERMISSIONS[SaasPlanEnum.EMPRENDEDOR],
           features_list: [
-            'Hasta 3 usuarios concurrentes',
+            'Hasta 2 usuarios concurrentes',
             'Hasta 500 productos en catálogo',
             '1 Almacén / Bodega principal',
-            'Punto de Venta (POS) & Ventas',
-            'Sincronización Tasa Oficial BCV'
+            'Punto de Venta (POS) & Facturación Directa',
+            'Compras Básicas & Cuentas por Cobrar (CxC)',
+            'Sincronización Tasa Oficial BCV ($ / €)'
           ]
         }),
         new SaasPlan({
           code: 'COMERCIAL_PRO',
           name: 'Comercial Pro',
-          description: 'Para distribuidoras, farmacias y comercios medianos en expansión',
+          description: 'Para distribuidoras, farmacias y comercios medianos con preventa y compras',
           monthly_fee_usd: 35.00,
           annual_fee_usd: 350.00,
-          max_users: 10,
-          max_products: 2500,
-          max_warehouses: 3,
+          max_users: 5,
+          max_products: 3000,
+          max_warehouses: 2,
           has_fiscal_printing: true,
           badge_text: 'Más Vendido',
           is_featured: true,
           is_active: true,
-          enabled_modules: ['POS', 'INVENTORY', 'BANKS', 'REPORTS', 'SETTINGS'],
-          enabled_permissions: [
-            'pos:create', 'sales:invoicing', 'sales:quotations', 'sales:orders', 'sales:deliveries', 'clients:manage', 'pos:shifts',
-            'purchases:orders', 'purchases:receptions', 'purchases:new', 'purchases:invoices', 'providers:manage',
-            'inventory:create', 'inventory:stock', 'inventory:bulk_prices', 'inventory:valuation', 'inventory:warehouse', 'inventory:categories', 'inventory:moves',
-            'banks:accounts', 'accounts:receivables', 'accounts:payables', 'accounts:history',
-            'reports:view',
-            'company:manage', 'fiscal:manage', 'users:manage'
-          ],
+          enabled_modules: PLAN_DEFAULT_MODULES[SaasPlanEnum.COMERCIAL_PRO],
+          enabled_permissions: PLAN_DEFAULT_PERMISSIONS[SaasPlanEnum.COMERCIAL_PRO],
           features_list: [
-            'Hasta 10 usuarios concurrentes',
-            'Hasta 2,500 productos en catálogo',
-            'Hasta 3 Almacenes / Depósitos',
-            'Compatibilidad con Impresoras Fiscales',
-            'Cuentas por Cobrar (CxC) y Pagar (CxP)',
-            'Reportes y Métricas BI Avanzadas'
+            'Hasta 5 usuarios concurrentes',
+            'Hasta 3,000 productos en catálogo',
+            'Hasta 2 Almacenes / Depósitos',
+            'Cotizaciones, Notas de Pedido y Entrega',
+            'Circuito formal de Órdenes de Compra y Recepción',
+            'Cuentas por Cobrar (CxC), Pagar (CxP) y Bancos',
+            'Actualización Masiva de Precios & Valuación',
+            'Compatibilidad con Impresoras Fiscales'
           ]
         }),
         new SaasPlan({
@@ -110,25 +107,18 @@ export class SaasPlanManagementUseCase {
           max_products: 10000,
           max_warehouses: 10,
           has_fiscal_printing: true,
-          badge_text: 'Full Equip',
+          badge_text: 'Empresarial',
           is_featured: false,
           is_active: true,
-          enabled_modules: ['POS', 'INVENTORY', 'BANKS', 'REPORTS', 'PAYROLL', 'SETTINGS'],
-          enabled_permissions: [
-            'pos:create', 'sales:invoicing', 'sales:quotations', 'sales:orders', 'sales:deliveries', 'clients:manage', 'pos:shifts',
-            'purchases:orders', 'purchases:receptions', 'purchases:new', 'purchases:invoices', 'providers:manage',
-            'inventory:create', 'inventory:stock', 'inventory:bulk_prices', 'inventory:valuation', 'inventory:warehouse', 'inventory:categories', 'inventory:moves',
-            'banks:accounts', 'accounts:receivables', 'accounts:payables', 'accounts:history',
-            'reports:view',
-            'company:manage', 'fiscal:manage', 'users:manage'
-          ],
+          enabled_modules: PLAN_DEFAULT_MODULES[SaasPlanEnum.CORPORATIVO],
+          enabled_permissions: PLAN_DEFAULT_PERMISSIONS[SaasPlanEnum.CORPORATIVO],
           features_list: [
-            'Hasta 25 usuarios u operadores',
-            'Hasta 10,000 productos en catálogo',
-            'Almacenes y Sucursales ilimitadas',
-            'Soporte Fiscal & IGTF estricto',
-            'Módulo de Nómina & RRHH',
-            'Integraciones API & Cashea'
+            'Hasta 25 usuarios concurrentes',
+            'Catálogo y Stock Ilimitado',
+            'Multi-Almacén Ilimitado',
+            'Módulo de Nómina & RRHH completo',
+            'Reportes y Métricas BI Avanzadas',
+            'Soporte Prioritario 24/7'
           ]
         })
       ];
