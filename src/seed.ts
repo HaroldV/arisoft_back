@@ -2,8 +2,12 @@ import { Client } from 'pg';
 import * as bcrypt from 'bcrypt';
 
 async function seed() {
+  const connectionString = process.env.DATABASE_URL || 
+    `postgresql://${process.env.DB_USER || 'ari_admin'}:${process.env.DB_PASSWORD || 'ari_password_2026'}@${process.env.DB_HOST || '127.0.0.1'}:${process.env.DB_PORT || 5444}/${process.env.DB_NAME || 'ari_erp_db'}`;
+
   const client = new Client({
-    connectionString: 'postgresql://ari_admin:ari_password_2026@127.0.0.1:5444/ari_erp_db',
+    connectionString,
+    ssl: process.env.DATABASE_URL || process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   });
 
   try {
