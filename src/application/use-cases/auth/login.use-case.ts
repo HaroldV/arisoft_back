@@ -121,6 +121,7 @@ export class LoginUseCase {
       'accounts:receivables': 'BANKS',
       'accounts:payables': 'BANKS',
       'accounts:history': 'BANKS',
+      'payroll:manage': 'PAYROLL',
       'reports:view': 'REPORTS',
       'company:manage': 'SETTINGS',
       'fiscal:manage': 'SETTINGS',

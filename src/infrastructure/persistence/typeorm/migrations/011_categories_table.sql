@@ -64,37 +64,45 @@ INSERT INTO categories (tenant_id, name, code, is_active) VALUES
 (NULL, 'General', '47190', true)
 ON CONFLICT DO NOTHING;
 
--- Import categories from existing products to preserve tenant custom categories
-INSERT INTO categories (tenant_id, name, code, is_active)
-SELECT DISTINCT p.tenant_id, p.category, NULL, true
-FROM products p
-WHERE p.category IS NOT NULL 
-  AND TRIM(p.category) <> ''
-  AND NOT EXISTS (
-    SELECT 1 FROM categories c 
-    WHERE LOWER(c.name) = LOWER(p.category) 
-      AND (c.tenant_id = p.tenant_id OR c.tenant_id IS NULL)
-  );
-
--- Add category_id to products
+-- Add category_id to products if it doesn't exist
 ALTER TABLE products 
-ADD COLUMN category_id UUID REFERENCES categories(id) ON DELETE SET NULL;
+ADD COLUMN IF NOT EXISTS category_id UUID REFERENCES categories(id) ON DELETE SET NULL;
 
--- Link existing products to the corresponding category
-UPDATE products p
-SET category_id = (
-    SELECT c.id 
-    FROM categories c 
-    WHERE LOWER(c.name) = LOWER(p.category)
-      AND (c.tenant_id = p.tenant_id OR c.tenant_id IS NULL)
-    LIMIT 1
-);
+-- Import categories from existing products if the category column still exists
+DO $$ 
+BEGIN
+    IF EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name = 'products' AND column_name = 'category'
+    ) THEN
+        INSERT INTO categories (tenant_id, name, code, is_active)
+        SELECT DISTINCT p.tenant_id, p.category, NULL, true
+        FROM products p
+        WHERE p.category IS NOT NULL 
+          AND TRIM(p.category) <> ''
+          AND NOT EXISTS (
+            SELECT 1 FROM categories c 
+            WHERE LOWER(c.name) = LOWER(p.category) 
+              AND (c.tenant_id = p.tenant_id OR c.tenant_id IS NULL)
+          );
+
+        UPDATE products p
+        SET category_id = (
+            SELECT c.id 
+            FROM categories c 
+            WHERE LOWER(c.name) = LOWER(p.category)
+              AND (c.tenant_id = p.tenant_id OR c.tenant_id IS NULL)
+            LIMIT 1
+        )
+        WHERE p.category_id IS NULL;
+
+        ALTER TABLE products DROP COLUMN IF EXISTS category;
+    END IF;
+END $$;
 
 -- Default any unmapped products to the 'General' category
 UPDATE products p
 SET category_id = (SELECT id FROM categories WHERE name = 'General' AND tenant_id IS NULL LIMIT 1)
 WHERE category_id IS NULL;
 
--- Drop the old category string column
-ALTER TABLE products 
-DROP COLUMN category;

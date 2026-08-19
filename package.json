@@ -6,6 +6,8 @@
   "scripts": {
     "start:db": "docker-compose up -d",
     "stop:db": "docker-compose down",
+    "start": "node dist/main.js",
+    "start:prod": "node dist/main.js",
     "start:dev": "nest start --watch",
     "dev": "npm run start:dev",
     "build": "nest build",

@@ -4,6 +4,7 @@ export enum PaymentMethodEnum {
   TRANSFER = 'TRANSFER',
   PAGO_MOVIL = 'PAGO_MOVIL',
   ZELLE = 'ZELLE',
+  BINANCE = 'BINANCE',
 }
 
 export enum SubscriptionPaymentStatusEnum {
@@ -43,6 +44,24 @@ export class SubscriptionPaymentReceipt {
 
   @Column({ type: 'varchar', length: 100, nullable: true })
   bank_origin: string;
+
+  @Column({ type: 'date', nullable: true })
+  payment_date: Date;
+
+  @Column({ type: 'varchar', length: 150, nullable: true })
+  zelle_account_owner: string;
+
+  @Column({ type: 'varchar', length: 150, nullable: true })
+  zelle_email: string;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  binance_id: string;
+
+  @Column({ type: 'varchar', length: 150, nullable: true })
+  binance_email: string;
+
+  @Column({ type: 'text', nullable: true })
+  receipt_image_base64: string;
 
   @Column({ type: 'text', nullable: true })
   notes: string;

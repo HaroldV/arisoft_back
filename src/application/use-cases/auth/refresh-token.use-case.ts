@@ -96,6 +96,8 @@ export class RefreshTokenUseCase {
       'banks:view': 'BANKS',
       'banks:write': 'BANKS',
       'banks:transfer': 'BANKS',
+      'payroll:manage': 'PAYROLL',
+      'reports:view': 'REPORTS',
       'users:manage': 'SETTINGS',
       'fiscal:manage': 'SETTINGS',
       'company:manage': 'SETTINGS',

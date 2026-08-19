@@ -31,7 +31,7 @@ import { RifValidator } from '../../../domain/utils/rif-validator.util';
 import { EmailValidator } from '../../../domain/utils/email-validator.util';
 
 import { ApproveSubscriptionPaymentUseCase } from '../../../application/use-cases/admin/approve-subscription-payment.use-case';
-import { SubscriptionPaymentReceipt } from '../../../domain/entities/subscription-payment-receipt.entity';
+import { SubscriptionPaymentReceipt, SubscriptionPaymentStatusEnum } from '../../../domain/entities/subscription-payment-receipt.entity';
 
 import { ExchangeRateHistoryRepository } from '../../../infrastructure/persistence/typeorm/repositories/exchange-rate-history.repository';
 
@@ -472,5 +472,25 @@ export class SuperAdminController {
   async approveSubscriptionPayment(@Param('id') id: string, @Req() req: any) {
     const adminUserId = req.user?.id;
     return await this.approveSubscriptionPaymentUseCase.execute(id, adminUserId);
+  }
+
+  @Post('subscription/payments/:id/reject')
+  @ApiOperation({ summary: 'Rechazar pago de suscripción con motivo de observación' })
+  async rejectSubscriptionPayment(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    const reason = body.rejection_reason || 'Pago rechazado o datos incompletos.';
+    const adminUserId = req.user?.id || 'SUPER_ADMIN';
+
+    const repo = this.dataSource.getRepository(SubscriptionPaymentReceipt);
+    const receipt = await repo.findOne({ where: { id } });
+    if (!receipt) {
+      throw new BadRequestException('Recibo de pago no encontrado.');
+    }
+
+    receipt.status = SubscriptionPaymentStatusEnum.REJECTED;
+    receipt.rejection_reason = reason;
+    receipt.reviewed_at = new Date();
+    receipt.reviewed_by_user_id = adminUserId;
+
+    return await repo.save(receipt);
   }
 }

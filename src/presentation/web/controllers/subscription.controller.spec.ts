@@ -1,14 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SubscriptionController } from './subscription.controller';
 import { RegisterSubscriptionPaymentUseCase } from '../../../application/use-cases/subscription/register-subscription-payment.use-case';
+import { SaasPlanManagementUseCase } from '../../../application/use-cases/admin/saas-plan-management.use-case';
 import { DataSource } from 'typeorm';
 import { BadRequestException } from '@nestjs/common';
 
 describe('SubscriptionController (Unit & Integration Tests)', () => {
   let controller: SubscriptionController;
   let mockRegisterPaymentUseCase: any;
+  let mockSaasPlanManagementUseCase: any;
   let mockDataSource: any;
-  let mockPlanRepository: any;
 
   const validTenantId = '69430cba-f5b2-4cf2-b7e3-721394c1765c';
   const mockReq = { user: { tenant_id: validTenantId } };
@@ -18,12 +19,15 @@ describe('SubscriptionController (Unit & Integration Tests)', () => {
       execute: jest.fn().mockResolvedValue({ id: 'receipt-123', status: 'PENDING_APPROVAL' }),
     };
 
-    mockPlanRepository = {
-      find: jest.fn().mockResolvedValue([{ id: 'plan-1', code: 'EMPRENDEDOR', is_active: true }]),
+    mockSaasPlanManagementUseCase = {
+      listPlans: jest.fn().mockResolvedValue([
+        { id: 'plan-1', code: 'EMPRENDEDOR', is_active: true },
+        { id: 'plan-2', code: 'INACTIVO', is_active: false },
+      ]),
     };
 
     mockDataSource = {
-      getRepository: jest.fn().mockReturnValue(mockPlanRepository),
+      getRepository: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -31,6 +35,7 @@ describe('SubscriptionController (Unit & Integration Tests)', () => {
       providers: [
         { provide: DataSource, useValue: mockDataSource },
         { provide: RegisterSubscriptionPaymentUseCase, useValue: mockRegisterPaymentUseCase },
+        { provide: SaasPlanManagementUseCase, useValue: mockSaasPlanManagementUseCase },
       ],
     }).compile();
 
@@ -42,9 +47,9 @@ describe('SubscriptionController (Unit & Integration Tests)', () => {
   });
 
   describe('GET /subscription/plans', () => {
-    it('should return active SaaS plans', async () => {
+    it('should return only active SaaS plans from saasPlanManagementUseCase', async () => {
       const res = await controller.getPlans();
-      expect(mockPlanRepository.find).toHaveBeenCalledWith({ where: { is_active: true } });
+      expect(mockSaasPlanManagementUseCase.listPlans).toHaveBeenCalled();
       expect(res).toEqual([{ id: 'plan-1', code: 'EMPRENDEDOR', is_active: true }]);
     });
   });
