@@ -146,6 +146,10 @@ import { ExchangeRateHistory } from './domain/entities/exchange-rate-history.ent
 import { SystemSettingRepository } from './infrastructure/persistence/typeorm/repositories/system-setting.repository';
 import { ExchangeRateHistoryRepository } from './infrastructure/persistence/typeorm/repositories/exchange-rate-history.repository';
 
+import { FileUploadController } from './presentation/web/controllers/file-upload.controller';
+import { UploadImageUseCase } from './application/use-cases/file/upload-image.use-case';
+import { S3Service } from './infrastructure/storage/s3-service';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -183,7 +187,7 @@ import { ExchangeRateHistoryRepository } from './infrastructure/persistence/type
       },
     ]),
   ],
-  controllers: [InventoryController, AuthController, CommercialDocumentsController, SalesController, CashShiftsController, ProvidersController, ClientsController, BankAccountsController, CategoriesController, WarehouseLocationsController, FiscalRangesController, TenantProfileController, UsersController, RolesController, AccountsController, PurchasesController, SuperAdminController, SubscriptionController],
+  controllers: [InventoryController, AuthController, CommercialDocumentsController, SalesController, CashShiftsController, ProvidersController, ClientsController, BankAccountsController, CategoriesController, WarehouseLocationsController, FiscalRangesController, TenantProfileController, UsersController, RolesController, AccountsController, PurchasesController, SuperAdminController, SubscriptionController, FileUploadController],
   providers: [
     BulkUploadProductsUseCase,
     RegisterPurchaseUseCase,
@@ -219,6 +223,8 @@ import { ExchangeRateHistoryRepository } from './infrastructure/persistence/type
     SaasPlanManagementUseCase,
     RegisterSubscriptionPaymentUseCase,
     ApproveSubscriptionPaymentUseCase,
+    UploadImageUseCase,
+    S3Service,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
