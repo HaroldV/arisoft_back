@@ -297,8 +297,75 @@ export class AppModule implements OnModuleInit {
           }
         }
       }
+
+      // Ensure default system tenant and Super Admin exist on startup
+      await this.ensureInitialSeedData();
     } catch (err) {
-      console.warn('Notice running SQL migrations on startup:', err);
+      console.warn('Notice running SQL migrations or seeding on startup:', err);
+    }
+  }
+
+  private async ensureInitialSeedData() {
+    try {
+      // 1. Check if superadmin exists
+      const superAdminUsers = await this.dataSource.query(`SELECT id FROM users WHERE email = 'superadmin@ari.com' LIMIT 1`);
+      const passwordHash = '$2b$10$7vN49FjMfs321Zl1kK0H6ORf4vXjS9NfU59842M5W16o049y5r68i'; // bcrypt hash of Admin123!
+      const tenantId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+
+      // 2. Ensure system tenant exists
+      await this.dataSource.query(`
+        INSERT INTO tenants (id, company_name, tax_id, plan_type, trial_expires_at, settings, is_active)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (id) DO NOTHING
+      `, [
+        tenantId,
+        'ARI Corp',
+        'J-12345678-9',
+        'CORPORATIVO',
+        new Date('2035-12-31'),
+        JSON.stringify({ allow_negative_stock: true, enabled_modules: ['POS', 'SALES', 'INVENTORY', 'BANKS', 'REPORTS', 'PAYROLL', 'SETTINGS'] }),
+        true,
+      ]);
+
+      // 3. Ensure Super Admin user exists
+      if (!superAdminUsers || superAdminUsers.length === 0) {
+        const superAdminId = 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a99';
+        await this.dataSource.query(`
+          INSERT INTO users (id, tenant_id, full_name, email, password_hash, role, is_active)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          ON CONFLICT DO NOTHING
+        `, [superAdminId, tenantId, 'Super Admin', 'superadmin@ari.com', passwordHash, 'SUPER_ADMIN', true]);
+        console.log('🌱 Super Admin user (superadmin@ari.com) seeded automatically on startup');
+      }
+
+      // 4. Ensure Alu Technology tenant and user exist for demo/testing
+      const aluUsers = await this.dataSource.query(`SELECT id FROM users WHERE email = 'alutechnology@gmail.com' LIMIT 1`);
+      const aluTenantId = '0a19cf31-6818-4a84-b280-9a2d3b1c54d3';
+      await this.dataSource.query(`
+        INSERT INTO tenants (id, company_name, tax_id, plan_type, trial_expires_at, settings, is_active)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (id) DO NOTHING
+      `, [
+        aluTenantId,
+        'Alu Technology',
+        'J-98765432-1',
+        'CORPORATIVO',
+        new Date('2035-12-31'),
+        JSON.stringify({ allow_negative_stock: true, enabled_modules: ['POS', 'SALES', 'INVENTORY', 'BANKS', 'REPORTS', 'PAYROLL', 'SETTINGS'] }),
+        true,
+      ]);
+
+      if (!aluUsers || aluUsers.length === 0) {
+        const aluOwnerId = '36fb17a2-49e9-4da5-ba52-a0c632a00002';
+        await this.dataSource.query(`
+          INSERT INTO users (id, tenant_id, full_name, email, password_hash, role, is_active)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          ON CONFLICT DO NOTHING
+        `, [aluOwnerId, aluTenantId, 'Edgar Ramirez', 'alutechnology@gmail.com', passwordHash, 'OWNER', true]);
+        console.log('🌱 Alu Technology owner (alutechnology@gmail.com) seeded automatically on startup');
+      }
+    } catch (seedErr) {
+      console.warn('Notice seeding initial users on startup:', seedErr);
     }
   }
 }
