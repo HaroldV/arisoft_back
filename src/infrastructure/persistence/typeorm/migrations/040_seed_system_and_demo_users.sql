@@ -1,7 +1,7 @@
 -- Migration 040: Seed or reset superadmin, demo and alutechnology users with valid bcrypt hashes
 DO $$
 DECLARE
-    v_password_hash VARCHAR := '$2b$10$7vN49FjMfs321Zl1kK0H6ORf4vXjS9NfU59842M5W16o049y5r68i'; -- Admin123!
+    v_password_hash VARCHAR := '$2b$10$0mtB3FBArJ3D29wCGZyf8O/CsYkbuFl.SqcMaDz5JKHuVlaGgHOim'; -- Admin123! (verified hash)
     v_demo_password_hash VARCHAR := '$2b$10$pt.sLuZj5OofdJCIz.RjsuHbVx9bJogiwfCgzbWl7VwolnQxwpHm2'; -- DemoAri2026!
     v_system_tenant_id UUID := 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
     v_demo_tenant_id UUID := 'f0eebc99-9c0b-4ef8-bb6d-6bb9bd380d01';
