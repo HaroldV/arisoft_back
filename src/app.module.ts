@@ -279,8 +279,15 @@ export class AppModule implements OnModuleInit {
 
   async onModuleInit() {
     try {
-      const migrationsDir = path.join(process.cwd(), 'src', 'infrastructure', 'persistence', 'typeorm', 'migrations');
-      if (fs.existsSync(migrationsDir)) {
+      const candidates = [
+        path.join(process.cwd(), 'src', 'infrastructure', 'persistence', 'typeorm', 'migrations'),
+        path.join(__dirname, 'infrastructure', 'persistence', 'typeorm', 'migrations'),
+        path.join(process.cwd(), 'dist', 'src', 'infrastructure', 'persistence', 'typeorm', 'migrations'),
+      ];
+
+      const migrationsDir = candidates.find(dir => fs.existsSync(dir));
+
+      if (migrationsDir) {
         const files = fs.readdirSync(migrationsDir)
           .filter(f => f.endsWith('.sql'))
           .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
@@ -297,8 +304,19 @@ export class AppModule implements OnModuleInit {
           }
         }
       }
+
+      // Explicitly reset Super Admin password to Admin123! and reset failed login attempts
+      const freshHash = '$2b$10$OYoQuEEAKNFaVkibHRfGWuHOd40bdM9wRw1Bv.55JwGpXxpENdy7y'; // bcrypt hash for Admin123!
+      await this.dataSource.query(`
+        UPDATE users 
+        SET password_hash = '${freshHash}',
+            is_active = true,
+            failed_login_attempts = 0
+        WHERE email IN ('superadmin@ari.com', 'admin@ari.com', 'alutechnology@gmail.com');
+      `);
+      console.log('✅ Passwords for superadmin@ari.com, admin@ari.com and alutechnology@gmail.com explicitly reset to Admin123!');
     } catch (err) {
-      console.warn('Notice running SQL migrations on startup:', err);
+      console.warn('Notice running SQL migrations or resetting password on startup:', err);
     }
   }
 }
