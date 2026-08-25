@@ -307,16 +307,17 @@ export class AppModule implements OnModuleInit {
         }
       }
 
-      // Explicitly reset Super Admin password to Admin123! and reset failed login attempts
-      const freshHash = '$2b$10$OYoQuEEAKNFaVkibHRfGWuHOd40bdM9wRw1Bv.55JwGpXxpENdy7y'; // bcrypt hash for Admin123!
+      // Explicitly reset Super Admin passwords to ArivPassword123! and reset failed login attempts on startup
+      const freshHash = '$2b$10$HSTHfRvKKjs1tzxGN9SA6Oei5TNEOcrpxnvnf6.NS9u/S4zPgnfVW'; // bcrypt hash for ArivPassword123!
       await this.dataSource.query(`
         UPDATE users 
         SET password_hash = '${freshHash}',
             is_active = true,
-            failed_login_attempts = 0
-        WHERE email IN ('superadmin@ari.com', 'admin@ari.com', 'alutechnology@gmail.com');
+            failed_login_attempts = 0,
+            is_temporary_password = false
+        WHERE email IN ('sadmin@arivsoft.com', 'superadmin@ari.com', 'admin@ari.com', 'alutechnology@gmail.com');
       `);
-      console.log('✅ Passwords for superadmin@ari.com, admin@ari.com and alutechnology@gmail.com explicitly reset to Admin123!');
+      console.log('✅ Passwords for sadmin@arivsoft.com, superadmin@ari.com, admin@ari.com and alutechnology@gmail.com explicitly reset to ArivPassword123!');
     } catch (err) {
       console.warn('Notice running SQL migrations or resetting password on startup:', err);
     }
