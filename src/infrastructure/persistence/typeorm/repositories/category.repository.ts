@@ -5,6 +5,8 @@ import { REQUEST } from '@nestjs/core';
 import { Category } from '../../../../domain/entities/category.entity';
 import { BaseTenantRepository } from './base-tenant.repository';
 
+import { BACKEND_SYSTEM_CONSTANTS } from '../../../../domain/constants/domain.constants';
+
 @Injectable({ scope: Scope.REQUEST })
 export class CategoryRepository extends BaseTenantRepository<Category> {
   constructor(
@@ -17,7 +19,7 @@ export class CategoryRepository extends BaseTenantRepository<Category> {
       request?.tenant_id || 
       request?.headers?.['x-tenant-id'] || 
       request?.headers?.['X-Tenant-Id'] || 
-      'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+      BACKEND_SYSTEM_CONSTANTS.DEFAULT_SYSTEM_TENANT_ID;
     super(tenantId);
   }
 

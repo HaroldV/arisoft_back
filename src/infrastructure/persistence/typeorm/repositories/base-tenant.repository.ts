@@ -1,3 +1,5 @@
+import { BACKEND_SYSTEM_CONSTANTS } from '../../../../domain/constants/domain.constants';
+
 /**
  * BaseTenantRepository
  * Purpose: Ensures mandatory tenant isolation on all database queries.
@@ -8,7 +10,7 @@ export class BaseTenantRepository<T> {
 
   constructor(tenantId: string) {
     if (!tenantId && process.env.NODE_ENV !== 'test') {
-      this.tenantId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+      this.tenantId = BACKEND_SYSTEM_CONSTANTS.DEFAULT_SYSTEM_TENANT_ID;
     } else if (!tenantId) {
       throw new Error('Tenant ID is required to instantiate a repository. CRITICAL SECURITY FAULT.');
     } else {
