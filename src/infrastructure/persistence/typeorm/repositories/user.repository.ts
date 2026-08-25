@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { User } from '../../../../domain/entities/user.entity';
 import { IUserRepository } from '../../../../domain/repositories/user.repository.interface';
 
@@ -12,8 +12,12 @@ export class UserRepository implements IUserRepository {
   ) {}
 
   async findByEmail(email: string): Promise<User | null> {
+    const cleanEmail = email ? email.trim() : '';
     return this.userRepository.findOne({
-      where: { email },
+      where: [
+        { email: ILike(cleanEmail) },
+        { email: cleanEmail.toLowerCase() }
+      ],
       select: [
         'id', 'tenant_id', 'full_name', 'email', 'password_hash', 
         'role', 'role_id', 'is_active', 'created_at', 'updated_at', 'creator_id', 'allowed_modules', 'allowed_permissions', 'failed_login_attempts', 'is_temporary_password'

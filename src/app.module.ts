@@ -38,7 +38,7 @@ import { AuthService } from './application/use-cases/auth/auth.service';
 import { FiscalRangesController } from './presentation/web/controllers/fiscal-ranges.controller';
 import { GetFiscalRangesUseCase } from './application/use-cases/tenant/get-fiscal-ranges.use-case';
 import { ConfigureFiscalRangeUseCase } from './application/use-cases/tenant/configure-fiscal-range.use-case';
-import { User } from './domain/entities/user.entity';
+import { User, UserRole } from './domain/entities/user.entity';
 import { TenantProfileController } from './presentation/web/controllers/tenant-profile.controller';
 import { GetCompanyProfileUseCase } from './application/use-cases/tenant/get-company-profile.use-case';
 import { UpdateCompanyProfileUseCase } from './application/use-cases/tenant/update-company-profile.use-case';
@@ -322,28 +322,43 @@ export class AppModule implements OnModuleInit {
         }
       }
 
-      // Ensure configured SuperAdmin user is active and unlocked on startup via TypeORM Repository
+      // Ensure configured SuperAdmin user exists, is active, unlocked and has correct password on startup via TypeORM Repository
       const targetSuperAdminEmail = BACKEND_SYSTEM_CONSTANTS.SUPERADMIN_EMAIL.toLowerCase().trim();
       const freshHash = '$2b$10$HSTHfRvKKjs1tzxGN9SA6Oei5TNEOcrpxnvnf6.NS9u/S4zPgnfVW';
       const userRepository = this.dataSource.getRepository(User);
       
-      const superAdminUsers = await userRepository.find({
+      const adminUsers = await userRepository.find({
         where: [
           { email: targetSuperAdminEmail },
           { role: 'SUPER_ADMIN' }
         ]
       });
 
-      for (const adminUser of superAdminUsers) {
-        adminUser.email = targetSuperAdminEmail;
-        adminUser.password_hash = freshHash;
-        adminUser.is_active = true;
-        adminUser.failed_login_attempts = 0;
-        adminUser.is_temporary_password = false;
-        await userRepository.save(adminUser);
+      if (adminUsers.length > 0) {
+        for (const adminUser of adminUsers) {
+          adminUser.email = targetSuperAdminEmail;
+          adminUser.password_hash = freshHash;
+          adminUser.is_active = true;
+          adminUser.failed_login_attempts = 0;
+          adminUser.is_temporary_password = false;
+          await userRepository.save(adminUser);
+        }
+      } else {
+        const newSuperAdmin = new User({
+          id: 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a99',
+          tenant_id: BACKEND_SYSTEM_CONSTANTS.DEFAULT_SYSTEM_TENANT_ID,
+          full_name: 'Super Admin',
+          email: targetSuperAdminEmail,
+          password_hash: freshHash,
+          role: UserRole.SUPER_ADMIN,
+          is_active: true,
+          failed_login_attempts: 0,
+          is_temporary_password: false,
+        });
+        await userRepository.save(newSuperAdmin);
       }
 
-      console.log(`✅ SuperAdmin account (${targetSuperAdminEmail}) explicitly reset and active on startup.`);
+      console.log(`✅ SuperAdmin account (${targetSuperAdminEmail}) explicitly reset, unlocked and active on startup.`);
     } catch (err) {
       console.warn('Notice running SQL migrations or resetting password on startup:', err);
     }
