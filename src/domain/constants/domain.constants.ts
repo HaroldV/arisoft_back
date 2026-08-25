@@ -145,9 +145,9 @@ export const BACKEND_SYSTEM_CONSTANTS = {
   TRIAL_DAYS_STANDARD: 90,
   ANNUAL_DAYS_STANDARD: 365,
   SUBSCRIPTION_RENEWAL_DAYS: 30,
-  DEFAULT_PASSWORD_ONBOARDING: process.env.SAAS_DEFAULT_ONBOARDING_PASS || 'ArivPassword123!',
+  SUPERADMIN_EMAIL: process.env.SUPERADMIN_EMAIL || 'sadmin@arivsoft.com',
+  DEFAULT_PASSWORD_ONBOARDING: process.env.SUPERADMIN_PASSWORD || process.env.SAAS_DEFAULT_ONBOARDING_PASS || 'ArivPassword123!',
   DEFAULT_OWNER_NAME: 'Gerente General',
-  DEFAULT_SUPERADMIN_EMAILS: ['sadmin@arivsoft.com', 'superadmin@ari.com', 'admin@ari.com', 'alutechnology@gmail.com'],
   PLAN_LIMITS: {
     EMPRENDEDOR: { USERS: 2, PRODUCTS: 500, FEE_USD: 15 },
     COMERCIAL_PRO: { USERS: 5, PRODUCTS: 3000, FEE_USD: 35 },

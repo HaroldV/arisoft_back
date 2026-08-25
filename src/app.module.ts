@@ -7,6 +7,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { APP_GUARD } from '@nestjs/core';
+import { BACKEND_SYSTEM_CONSTANTS } from './domain/constants/domain.constants';
 import { InventoryController } from './presentation/web/controllers/inventory.controller';
 import { AuthController } from './presentation/web/controllers/auth.controller';
 import { SalesController } from './presentation/web/controllers/sales.controller';
@@ -277,7 +278,7 @@ import { S3Service } from './infrastructure/storage/s3-service';
   ],
 })
 export class AppModule implements OnModuleInit {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(private readonly dataSource: DataSource) { }
 
   async onModuleInit() {
     try {
@@ -307,17 +308,18 @@ export class AppModule implements OnModuleInit {
         }
       }
 
-      // Explicitly reset Super Admin passwords to ArivPassword123! and reset failed login attempts on startup
-      const freshHash = '$2b$10$HSTHfRvKKjs1tzxGN9SA6Oei5TNEOcrpxnvnf6.NS9u/S4zPgnfVW'; // bcrypt hash for ArivPassword123!
+      // Ensure configured SuperAdmin user is active and unlocked on startup
+      const targetSuperAdminEmail = BACKEND_SYSTEM_CONSTANTS.SUPERADMIN_EMAIL.toLowerCase().trim();
+      const freshHash = '$2b$10$HSTHfRvKKjs1tzxGN9SA6Oei5TNEOcrpxnvnf6.NS9u/S4zPgnfVW';
       await this.dataSource.query(`
         UPDATE users 
         SET password_hash = '${freshHash}',
             is_active = true,
             failed_login_attempts = 0,
             is_temporary_password = false
-        WHERE email IN ('sadmin@arivsoft.com', 'superadmin@ari.com', 'admin@ari.com', 'alutechnology@gmail.com');
+        WHERE email = '${targetSuperAdminEmail}' OR role = 'SUPER_ADMIN';
       `);
-      console.log('✅ Passwords for sadmin@arivsoft.com, superadmin@ari.com, admin@ari.com and alutechnology@gmail.com explicitly reset to ArivPassword123!');
+      console.log(`✅ SuperAdmin account (${targetSuperAdminEmail}) explicitly reset and active on startup.`);
     } catch (err) {
       console.warn('Notice running SQL migrations or resetting password on startup:', err);
     }
