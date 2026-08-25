@@ -292,14 +292,17 @@ import { S3Service } from './infrastructure/storage/s3-service';
   ],
 })
 export class AppModule implements OnModuleInit {
-  constructor(private readonly dataSource: DataSource) { }
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly authService: AuthService,
+  ) { }
 
   async onModuleInit() {
     try {
       const candidates = [
         path.join(process.cwd(), 'src', 'infrastructure', 'persistence', 'typeorm', 'migrations'),
-        path.join(__dirname, 'infrastructure', 'persistence', 'typeorm', 'migrations'),
         path.join(process.cwd(), 'dist', 'src', 'infrastructure', 'persistence', 'typeorm', 'migrations'),
+        path.join(process.cwd(), 'dist', 'infrastructure', 'persistence', 'typeorm', 'migrations'),
       ];
 
       const migrationsDir = candidates.find(dir => fs.existsSync(dir));
@@ -324,7 +327,8 @@ export class AppModule implements OnModuleInit {
 
       // Ensure configured SuperAdmin user exists, is active, unlocked and has correct password on startup via TypeORM Repository
       const targetSuperAdminEmail = BACKEND_SYSTEM_CONSTANTS.SUPERADMIN_EMAIL.toLowerCase().trim();
-      const freshHash = '$2b$10$HSTHfRvKKjs1tzxGN9SA6Oei5TNEOcrpxnvnf6.NS9u/S4zPgnfVW';
+      const rawPassword = BACKEND_SYSTEM_CONSTANTS.DEFAULT_PASSWORD_ONBOARDING;
+      const freshHash = await this.authService.hashPassword(rawPassword);
       const userRepository = this.dataSource.getRepository(User);
       
       const adminUsers = await userRepository.find({
