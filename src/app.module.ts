@@ -308,17 +308,27 @@ export class AppModule implements OnModuleInit {
         }
       }
 
-      // Ensure configured SuperAdmin user is active and unlocked on startup
+      // Ensure configured SuperAdmin user is active and unlocked on startup via TypeORM Repository
       const targetSuperAdminEmail = BACKEND_SYSTEM_CONSTANTS.SUPERADMIN_EMAIL.toLowerCase().trim();
       const freshHash = '$2b$10$HSTHfRvKKjs1tzxGN9SA6Oei5TNEOcrpxnvnf6.NS9u/S4zPgnfVW';
-      await this.dataSource.query(`
-        UPDATE users 
-        SET password_hash = '${freshHash}',
-            is_active = true,
-            failed_login_attempts = 0,
-            is_temporary_password = false
-        WHERE email = '${targetSuperAdminEmail}' OR role = 'SUPER_ADMIN';
-      `);
+      const userRepository = this.dataSource.getRepository(User);
+      
+      const superAdminUsers = await userRepository.find({
+        where: [
+          { email: targetSuperAdminEmail },
+          { role: 'SUPER_ADMIN' }
+        ]
+      });
+
+      for (const adminUser of superAdminUsers) {
+        adminUser.email = targetSuperAdminEmail;
+        adminUser.password_hash = freshHash;
+        adminUser.is_active = true;
+        adminUser.failed_login_attempts = 0;
+        adminUser.is_temporary_password = false;
+        await userRepository.save(adminUser);
+      }
+
       console.log(`✅ SuperAdmin account (${targetSuperAdminEmail}) explicitly reset and active on startup.`);
     } catch (err) {
       console.warn('Notice running SQL migrations or resetting password on startup:', err);
