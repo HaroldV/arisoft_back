@@ -51,8 +51,11 @@ async function bootstrap() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 
-  // Validation
-  app.useGlobalPipes(new ValidationPipe());
+  // Validation with automatic DTO class transformation
+  app.useGlobalPipes(new ValidationPipe({
+    transform: true,
+    whitelist: true,
+  }));
 
   // Swagger Configuration
   setupSwagger(app);
