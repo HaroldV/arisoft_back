@@ -160,16 +160,30 @@ import { S3Service } from './infrastructure/storage/s3-service';
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get<string>('DB_HOST'),
-        port: configService.get<number>('DB_PORT'),
-        username: configService.get<string>('DB_USER'),
-        password: configService.get<string>('DB_PASSWORD'),
-        database: configService.get<string>('DB_NAME'),
-        entities: [User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory],
-        synchronize: false,
-      }),
+      useFactory: (configService: ConfigService) => {
+        const databaseUrl = configService.get<string>('DATABASE_URL');
+        if (databaseUrl) {
+          return {
+            type: 'postgres',
+            url: databaseUrl,
+            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+            entities: [User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory],
+            synchronize: false,
+          };
+        }
+
+        return {
+          type: 'postgres',
+          host: configService.get<string>('DB_HOST'),
+          port: configService.get<number>('DB_PORT'),
+          username: configService.get<string>('DB_USER'),
+          password: configService.get<string>('DB_PASSWORD'),
+          database: configService.get<string>('DB_NAME'),
+          ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+          entities: [User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory],
+          synchronize: false,
+        };
+      },
       inject: [ConfigService],
     }),
     TypeOrmModule.forFeature([User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory]),
