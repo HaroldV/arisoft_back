@@ -51,7 +51,6 @@ export class AuthController {
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) response: Response,
   ) {
-    console.log('📥 Login request received:', loginDto);
     const result = await this.loginUseCase.execute(loginDto);
     
     // Set HttpOnly refresh token cookie
@@ -69,7 +68,6 @@ export class AuthController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new Tenant and OWNER user' })
   async register(@Body() registerDto: RegisterTenantDto) {
-    console.log('📥 Register request received:', registerDto);
     return this.registerTenantUseCase.execute(registerDto);
   }
 
@@ -78,7 +76,6 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 900000 } }) // Limit password recovery requests too
   @ApiOperation({ summary: 'Request password recovery token' })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
-    console.log('📥 Forgot Password request received:', forgotPasswordDto);
     return this.forgotPasswordUseCase.execute(forgotPasswordDto);
   }
 
@@ -86,7 +83,6 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reset password using valid token' })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
-    console.log('📥 Reset Password request received:', resetPasswordDto);
     return this.resetPasswordUseCase.execute(resetPasswordDto);
   }
 
