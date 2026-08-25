@@ -57,6 +57,9 @@ export class User {
   @Column({ type: 'int', default: 0 })
   failed_login_attempts: number;
 
+  @Column({ type: 'boolean', default: false })
+  is_temporary_password: boolean;
+
   @CreateDateColumn()
   created_at: Date;
 

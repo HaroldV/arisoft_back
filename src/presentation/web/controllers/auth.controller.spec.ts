@@ -6,6 +6,7 @@ import { ForgotPasswordUseCase } from '../../../application/use-cases/auth/forgo
 import { ResetPasswordUseCase } from '../../../application/use-cases/auth/reset-password.use-case';
 import { RefreshTokenUseCase } from '../../../application/use-cases/auth/refresh-token.use-case';
 import { LogoutUseCase } from '../../../application/use-cases/auth/logout.use-case';
+import { ChangeInitialPasswordUseCase } from '../../../application/use-cases/auth/change-initial-password.use-case';
 import { Request, Response } from 'express';
 
 describe('AuthController (Unit & Integration Tests)', () => {
@@ -40,6 +41,7 @@ describe('AuthController (Unit & Integration Tests)', () => {
         { provide: ResetPasswordUseCase, useValue: mockResetPasswordUseCase },
         { provide: RefreshTokenUseCase, useValue: mockRefreshTokenUseCase },
         { provide: LogoutUseCase, useValue: mockLogoutUseCase },
+        { provide: ChangeInitialPasswordUseCase, useValue: { execute: jest.fn().mockResolvedValue({ success: true }) } },
       ],
     }).compile();
 

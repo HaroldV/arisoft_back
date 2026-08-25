@@ -170,6 +170,7 @@ export class LoginUseCase {
         enabled_modules: enabledModules,
         permissions: resolvedPermissions,
         trial_days_left: trialDaysLeft,
+        must_change_password: Boolean(user.is_temporary_password),
       },
       access_token: accessToken,
       refresh_token: refreshToken,

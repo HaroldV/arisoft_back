@@ -56,6 +56,7 @@ import { RefreshToken } from './domain/entities/refresh-token.entity';
 import { RefreshTokenRepository } from './infrastructure/persistence/typeorm/repositories/refresh-token.repository';
 import { RefreshTokenUseCase } from './application/use-cases/auth/refresh-token.use-case';
 import { LogoutUseCase } from './application/use-cases/auth/logout.use-case';
+import { ChangeInitialPasswordUseCase } from './application/use-cases/auth/change-initial-password.use-case';
 import { ExchangeRateService } from './infrastructure/finance/exchange-rate.service';
 import { BcvCronService } from './infrastructure/finance/bcv-cron.service';
 import { JwtStrategy } from './infrastructure/auth/strategies/jwt.strategy';
@@ -206,6 +207,7 @@ import { S3Service } from './infrastructure/storage/s3-service';
     ResetPasswordUseCase,
     RefreshTokenUseCase,
     LogoutUseCase,
+    ChangeInitialPasswordUseCase,
     GetFiscalRangesUseCase,
     ConfigureFiscalRangeUseCase,
     GetCompanyProfileUseCase,

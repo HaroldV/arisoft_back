@@ -185,4 +185,60 @@ describe('SuperAdminController - SaaS Plans CRUD (Unit & Integration Tests)', ()
       expect(res.source).toBe('MANUAL');
     });
   });
+
+  describe('PUT /admin/tenants/:id (updateTenant reset password flow)', () => {
+    it('Debe regenerar la clave temporal y marcar is_temporary_password = true cuando reset_password es true', async () => {
+      const validUuid = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+      const mockTenant = {
+        id: validUuid,
+        company_name: 'Demo Company',
+        settings: { owner_email: 'demo@arivsoft.com', owner_name: 'Usuario Demo' }
+      };
+
+      const mockOwnerUser = {
+        id: 'user-demo-456',
+        email: 'demo@arivsoft.com',
+        full_name: 'Usuario Demo',
+        password_hash: 'old_hash',
+        is_temporary_password: false,
+        is_active: true,
+        failed_login_attempts: 0
+      };
+
+      const mockTenantRepo = {
+        findOne: jest.fn().mockResolvedValue(mockTenant),
+        save: jest.fn().mockResolvedValue(mockTenant)
+      };
+
+      const mockUserRepo = {
+        findOne: jest.fn().mockResolvedValue(mockOwnerUser),
+        save: jest.fn().mockImplementation(async (u) => u)
+      };
+
+      mockDataSource.getRepository = jest.fn().mockImplementation((entity) => {
+        if (entity.name === 'Tenant') return mockTenantRepo;
+        if (entity.name === 'User') return mockUserRepo;
+        return mockPlanRepository;
+      });
+
+      mockAuthService.hashPassword = jest.fn().mockResolvedValue('hashed_ArivPassword123!');
+
+      const result = await controller.updateTenant(validUuid, {
+        name: 'Demo Company Updated',
+        owner_email: 'demo@arivsoft.com',
+        reset_password: true
+      });
+
+      expect(result.message).toBe('Tenant subscription updated successfully');
+      expect(result.defaultPassword).toBe('ArivPassword123!');
+      expect(mockAuthService.hashPassword).toHaveBeenCalledWith('ArivPassword123!');
+      expect(mockUserRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: 'demo@arivsoft.com',
+          is_temporary_password: true,
+          password_hash: 'hashed_ArivPassword123!'
+        })
+      );
+    });
+  });
 });

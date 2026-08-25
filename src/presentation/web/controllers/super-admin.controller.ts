@@ -195,16 +195,17 @@ export class SuperAdminController {
       const selectedPlan = (plan_name as SaasPlanEnum) || SaasPlanEnum.COMERCIAL_PRO;
       const defaultPlanModules = PLAN_DEFAULT_MODULES[selectedPlan] || PLAN_DEFAULT_MODULES[SaasPlanEnum.COMERCIAL_PRO];
       const defaultPlanPermissions = PLAN_DEFAULT_PERMISSIONS[selectedPlan] || PLAN_DEFAULT_PERMISSIONS[SaasPlanEnum.COMERCIAL_PRO];
+      const planLimits = BACKEND_SYSTEM_CONSTANTS.PLAN_LIMITS[selectedPlan] || BACKEND_SYSTEM_CONSTANTS.PLAN_LIMITS.COMERCIAL_PRO;
 
       tenant.settings = {
         subdomain: subdomain || name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-        max_users: Number(max_users || (selectedPlan === SaasPlanEnum.EMPRENDEDOR ? 2 : selectedPlan === SaasPlanEnum.COMERCIAL_PRO ? 5 : 25)),
-        max_products: Number(max_products || (selectedPlan === SaasPlanEnum.EMPRENDEDOR ? 500 : selectedPlan === SaasPlanEnum.COMERCIAL_PRO ? 3000 : 10000)),
-        monthly_fee_usd: Number(monthly_fee_usd || (selectedPlan === SaasPlanEnum.EMPRENDEDOR ? 15 : selectedPlan === SaasPlanEnum.COMERCIAL_PRO ? 35 : 60)),
+        max_users: Number(max_users || planLimits.USERS),
+        max_products: Number(max_products || planLimits.PRODUCTS),
+        monthly_fee_usd: Number(monthly_fee_usd || planLimits.FEE_USD),
         enabled_modules: enabled_modules || defaultPlanModules,
         enabled_permissions: enabled_permissions || defaultPlanPermissions,
         owner_email: cleanEmail,
-        owner_name: owner_name || 'Gerente General'
+        owner_name: owner_name || BACKEND_SYSTEM_CONSTANTS.DEFAULT_OWNER_NAME
       };
 
       const savedTenant = await manager.save(Tenant, tenant);
@@ -215,18 +216,19 @@ export class SuperAdminController {
 
       const user = new User({
         tenant_id: savedTenant.id,
-        full_name: owner_name || 'Gerente General',
+        full_name: owner_name || BACKEND_SYSTEM_CONSTANTS.DEFAULT_OWNER_NAME,
         email: cleanEmail,
         password_hash: passwordHash,
         role: UserRole.OWNER,
         is_active: true,
+        is_temporary_password: true,
         allowed_permissions: tenant.settings.enabled_permissions
       });
 
       await manager.save(User, user);
 
       return {
-        message: 'Tenant and Owner user created successfully',
+        message: BACKEND_SYSTEM_CONSTANTS.MESSAGES.TENANT_CREATED,
         tenantId: savedTenant.id,
         defaultPassword
       };
@@ -237,12 +239,12 @@ export class SuperAdminController {
   @ApiOperation({ summary: 'Reactivate tenant owner account and reset failed attempts' })
   async reactivateOwner(@Param('id') id: string) {
     if (!isUUID(id)) {
-      throw new BadRequestException('Invalid tenant ID format');
+      throw new BadRequestException(BACKEND_SYSTEM_CONSTANTS.MESSAGES.INVALID_UUID);
     }
 
     const tenant = await this.dataSource.getRepository(Tenant).findOne({ where: { id } });
     if (!tenant) {
-      throw new NotFoundException('Tenant not found');
+      throw new NotFoundException(BACKEND_SYSTEM_CONSTANTS.MESSAGES.TENANT_NOT_FOUND);
     }
 
     if (!tenant.is_active) {
@@ -261,26 +263,30 @@ export class SuperAdminController {
     }
 
     if (!ownerUser) {
-      throw new NotFoundException('Owner user not found for this tenant');
+      throw new NotFoundException(BACKEND_SYSTEM_CONSTANTS.MESSAGES.OWNER_NOT_FOUND);
     }
 
     ownerUser.is_active = true;
     ownerUser.failed_login_attempts = 0;
     await this.dataSource.getRepository(User).save(ownerUser);
 
-    return { message: `Usuario propietario ${ownerUser.email} reactivado con éxito.`, owner_email: ownerUser.email, owner_name: ownerUser.full_name };
+    return { 
+      message: BACKEND_SYSTEM_CONSTANTS.MESSAGES.OWNER_REACTIVATED(ownerUser.email), 
+      owner_email: ownerUser.email, 
+      owner_name: ownerUser.full_name 
+    };
   }
 
   @Put('tenants/:id')
   @ApiOperation({ summary: 'Update tenant registration and subscription' })
   async updateTenant(@Param('id') id: string, @Body() body: any) {
     if (!isUUID(id)) {
-      throw new BadRequestException('Invalid tenant ID format');
+      throw new BadRequestException(BACKEND_SYSTEM_CONSTANTS.MESSAGES.INVALID_UUID);
     }
 
     const tenant = await this.dataSource.getRepository(Tenant).findOne({ where: { id } });
     if (!tenant) {
-      throw new NotFoundException('Tenant not found');
+      throw new NotFoundException(BACKEND_SYSTEM_CONSTANTS.MESSAGES.TENANT_NOT_FOUND);
     }
 
     const {
@@ -321,16 +327,39 @@ export class SuperAdminController {
       owner_name: owner_name || tenant.settings?.owner_name
     };
 
-    await this.dataSource.getRepository(Tenant).save(tenant);
+    let defaultPasswordReset: string | undefined = undefined;
+    const targetEmail = owner_email ? owner_email.toLowerCase().trim() : tenant.settings?.owner_email?.toLowerCase().trim();
 
-    const ownerUser = await this.dataSource.getRepository(User).findOne({
-      where: { tenant_id: tenant.id, role: UserRole.OWNER }
-    });
+    let ownerUser: User | null = null;
+
+    if (targetEmail) {
+      ownerUser = await this.dataSource.getRepository(User).findOne({
+        where: { email: targetEmail }
+      });
+    }
+
+    if (!ownerUser) {
+      ownerUser = await this.dataSource.getRepository(User).findOne({
+        where: { tenant_id: tenant.id, role: UserRole.OWNER }
+      });
+    }
+
+    if (!ownerUser) {
+      ownerUser = await this.dataSource.getRepository(User).findOne({
+        where: { tenant_id: tenant.id }
+      });
+    }
+
     if (ownerUser) {
       if (owner_email) ownerUser.email = owner_email.toLowerCase().trim();
       if (owner_name) ownerUser.full_name = owner_name;
       if (enabled_permissions && Array.isArray(enabled_permissions)) {
         ownerUser.allowed_permissions = enabled_permissions;
+      }
+      if (body.reset_password === true) {
+        defaultPasswordReset = BACKEND_SYSTEM_CONSTANTS.DEFAULT_PASSWORD_ONBOARDING;
+        ownerUser.password_hash = await this.authService.hashPassword(defaultPasswordReset);
+        ownerUser.is_temporary_password = true;
       }
       // Sincronizar el estado del usuario Owner con el estado de la empresa (ACTIVE vs SUSPENDED)
       if (status === TenantStatusEnum.SUSPENDED) {
@@ -342,7 +371,10 @@ export class SuperAdminController {
       await this.dataSource.getRepository(User).save(ownerUser);
     }
 
-    return { message: 'Tenant subscription updated successfully' };
+    return { 
+      message: BACKEND_SYSTEM_CONSTANTS.MESSAGES.TENANT_UPDATED,
+      defaultPassword: defaultPasswordReset
+    };
   }
 
   @Post('tenants/:id/impersonate')

@@ -16,7 +16,7 @@ export class UserRepository implements IUserRepository {
       where: { email },
       select: [
         'id', 'tenant_id', 'full_name', 'email', 'password_hash', 
-        'role', 'role_id', 'is_active', 'created_at', 'updated_at', 'creator_id', 'allowed_modules', 'allowed_permissions', 'failed_login_attempts'
+        'role', 'role_id', 'is_active', 'created_at', 'updated_at', 'creator_id', 'allowed_modules', 'allowed_permissions', 'failed_login_attempts', 'is_temporary_password'
       ],
     });
   }

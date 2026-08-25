@@ -145,5 +145,20 @@ export const BACKEND_SYSTEM_CONSTANTS = {
   TRIAL_DAYS_STANDARD: 90,
   ANNUAL_DAYS_STANDARD: 365,
   SUBSCRIPTION_RENEWAL_DAYS: 30,
-  DEFAULT_PASSWORD_ONBOARDING: process.env.SAAS_DEFAULT_ONBOARDING_PASS || 'AriSaas2026!',
+  DEFAULT_PASSWORD_ONBOARDING: process.env.SAAS_DEFAULT_ONBOARDING_PASS || 'ArivPassword123!',
+  DEFAULT_OWNER_NAME: 'Gerente General',
+  DEFAULT_SUPERADMIN_EMAILS: ['superadmin@ari.com', 'admin@ari.com', 'alutechnology@gmail.com'],
+  PLAN_LIMITS: {
+    EMPRENDEDOR: { USERS: 2, PRODUCTS: 500, FEE_USD: 15 },
+    COMERCIAL_PRO: { USERS: 5, PRODUCTS: 3000, FEE_USD: 35 },
+    CORPORATIVO: { USERS: 25, PRODUCTS: 10000, FEE_USD: 60 },
+  },
+  MESSAGES: {
+    TENANT_CREATED: 'Tenant and Owner user created successfully',
+    TENANT_UPDATED: 'Tenant subscription updated successfully',
+    OWNER_REACTIVATED: (email: string) => `Usuario propietario ${email} reactivado con éxito.`,
+    INVALID_UUID: 'Invalid tenant ID format',
+    TENANT_NOT_FOUND: 'Tenant not found',
+    OWNER_NOT_FOUND: 'Owner user not found for this tenant',
+  },
 };

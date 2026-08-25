@@ -153,4 +153,19 @@ describe('LoginUseCase', () => {
       }),
     ).rejects.toThrow(UnauthorizedException);
   });
+
+  it('should return must_change_password = true when user.is_temporary_password is true', async () => {
+    const tempUser = new User({ ...mockUser, is_temporary_password: true });
+    userRepository.findByEmail.mockResolvedValue(tempUser);
+    authService.comparePassword.mockResolvedValue(true);
+    authService.generateAccessToken.mockResolvedValue('mock_access_token');
+    authService.generateRefreshToken.mockResolvedValue('mock_refresh_token');
+
+    const response = await useCase.execute({
+      email: 'test@example.com',
+      password: 'ArivPassword123!',
+    });
+
+    expect(response.user.must_change_password).toBe(true);
+  });
 });

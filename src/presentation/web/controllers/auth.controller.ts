@@ -1,7 +1,9 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Req, Res } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Controller, Post, Body, HttpCode, HttpStatus, Req, Res, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
+import { JwtAuthGuard } from '../../../infrastructure/auth/guards/jwt-auth.guard';
+import { ChangeInitialPasswordUseCase } from '../../../application/use-cases/auth/change-initial-password.use-case';
 import { LoginUseCase } from '../../../application/use-cases/auth/login.use-case';
 import { LoginDto } from '../../../application/use-cases/auth/login.dto';
 import { RegisterTenantUseCase } from '../../../application/use-cases/tenant/register-tenant.use-case';
@@ -23,6 +25,7 @@ export class AuthController {
     private readonly resetPasswordUseCase: ResetPasswordUseCase,
     private readonly refreshTokenUseCase: RefreshTokenUseCase,
     private readonly logoutUseCase: LogoutUseCase,
+    private readonly changeInitialPasswordUseCase: ChangeInitialPasswordUseCase,
   ) {}
 
   private extractRefreshToken(req: Request): string | undefined {
@@ -108,6 +111,22 @@ export class AuthController {
     // Remove refresh_token from body response
     const { refresh_token, ...rest } = result;
     return rest;
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Change initial temporary password' })
+  async changePassword(
+    @Req() req: any,
+    @Body() body: { newPassword: string },
+  ) {
+    const userId = req.user?.sub || req.user?.id;
+    return this.changeInitialPasswordUseCase.execute({
+      userId,
+      newPassword: body.newPassword,
+    });
   }
 
   @Post('logout')
