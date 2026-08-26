@@ -4,6 +4,7 @@ import { TenantRepository } from '../../../infrastructure/persistence/typeorm/re
 import { AuthService } from '../auth/auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { User, UserRole } from '../../../domain/entities/user.entity';
+import { BACKEND_SYSTEM_CONSTANTS, PLAN_DEFAULT_MODULES, PLAN_DEFAULT_PERMISSIONS, SaasPlanEnum } from '../../../domain/constants/domain.constants';
 
 @Injectable()
 export class CreateUserUseCase {
@@ -36,23 +37,64 @@ export class CreateUserUseCase {
       throw new ConflictException(`User with email ${email} is already registered`);
     }
 
-    // 4. Validate modules delegation limits
+    const tenant = await this.tenantRepository.findById(creator.tenant_id);
+    if (!tenant) {
+      throw new BadRequestException('Tenant not found');
+    }
+
+    // 4. Validate Plan User Quota Limit (STORY-UM-04)
+    const currentUsers = await this.userRepository.findAllByTenant(creator.tenant_id);
+    const planCode = (tenant.plan_type as SaasPlanEnum) || SaasPlanEnum.COMERCIAL_PRO;
+    const defaultPlanLimits = BACKEND_SYSTEM_CONSTANTS.PLAN_LIMITS[planCode] || BACKEND_SYSTEM_CONSTANTS.PLAN_LIMITS.COMERCIAL_PRO;
+    const maxUsersAllowed = tenant.settings?.max_users !== undefined 
+      ? Number(tenant.settings.max_users) 
+      : defaultPlanLimits.USERS;
+
+    if (currentUsers.length >= maxUsersAllowed) {
+      throw new ForbiddenException(
+        `Has alcanzado el límite máximo de usuarios permitidos en tu suscripción (${currentUsers.length} de ${maxUsersAllowed}). Actualiza tu plan para registrar más usuarios.`
+      );
+    }
+
+    // 5. Validate modules delegation limits
     const permissionToModuleMap: Record<string, string> = {
       'pos:create': 'POS',
+      'sales:invoicing': 'POS',
+      'sales:quotations': 'SALES',
+      'sales:orders': 'SALES',
+      'sales:deliveries': 'SALES',
+      'clients:manage': 'POS',
+      'pos:shifts': 'POS',
       'pos:discount': 'POS',
       'pos:refund': 'POS',
-      'clients:manage': 'POS',
+      'purchases:new': 'INVENTORY_PURCHASES',
+      'purchases:orders': 'INVENTORY_PURCHASES',
+      'purchases:receptions': 'INVENTORY_PURCHASES',
+      'purchases:invoices': 'INVENTORY_PURCHASES',
+      'purchases:register': 'INVENTORY_PURCHASES',
+      'providers:manage': 'INVENTORY_PURCHASES',
+      'inventory:create': 'INVENTORY',
       'inventory:view': 'INVENTORY',
       'inventory:write': 'INVENTORY',
+      'inventory:stock': 'INVENTORY',
+      'inventory:bulk_prices': 'INVENTORY',
+      'inventory:valuation': 'INVENTORY',
+      'inventory:warehouse': 'INVENTORY',
+      'inventory:categories': 'INVENTORY',
+      'inventory:moves': 'INVENTORY',
       'inventory:adjust': 'INVENTORY',
-      'purchases:register': 'INVENTORY',
-      'providers:manage': 'INVENTORY',
+      'banks:accounts': 'BANKS',
       'banks:view': 'BANKS',
       'banks:write': 'BANKS',
       'banks:transfer': 'BANKS',
-      'users:manage': 'SETTINGS',
-      'fiscal:manage': 'SETTINGS',
+      'accounts:receivables': 'BANKS',
+      'accounts:payables': 'BANKS',
+      'accounts:history': 'BANKS',
+      'payroll:manage': 'PAYROLL',
+      'reports:view': 'REPORTS',
       'company:manage': 'SETTINGS',
+      'fiscal:manage': 'SETTINGS',
+      'users:manage': 'SETTINGS',
     };
 
     if ((!dto.allowed_modules || dto.allowed_modules.length === 0) && dto.allowed_permissions) {
@@ -64,12 +106,11 @@ export class CreateUserUseCase {
       dto.allowed_modules = Array.from(resolvedMods) as any[];
     }
 
-    const tenant = await this.tenantRepository.findById(creator.tenant_id);
-    if (!tenant) {
-      throw new BadRequestException('Tenant not found');
-    }
-
-    const tenantModules = tenant.settings?.enabled_modules || ['POS', 'INVENTORY', 'SETTINGS', 'BANKS', 'PAYROLL'];
+    const defaultPlanModules = PLAN_DEFAULT_MODULES[planCode] || PLAN_DEFAULT_MODULES[SaasPlanEnum.COMERCIAL_PRO];
+    const defaultPlanPermissions = PLAN_DEFAULT_PERMISSIONS[planCode] || PLAN_DEFAULT_PERMISSIONS[SaasPlanEnum.COMERCIAL_PRO];
+    
+    const tenantModules = tenant.settings?.enabled_modules || defaultPlanModules;
+    const tenantPermissions = tenant.settings?.enabled_permissions || defaultPlanPermissions;
     
     // Limits of creator's modules
     const creatorAllowedModules = creator.role === UserRole.OWNER 
@@ -86,12 +127,7 @@ export class CreateUserUseCase {
 
     // Limits of creator's permissions
     const creatorAllowedPermissions = creator.role === UserRole.OWNER
-      ? [
-          'pos:create', 'pos:discount', 'pos:refund', 'clients:manage',
-          'inventory:view', 'inventory:write', 'inventory:adjust', 'purchases:register', 'providers:manage',
-          'banks:view', 'banks:write', 'banks:transfer',
-          'users:manage', 'fiscal:manage', 'company:manage'
-        ]
+      ? tenantPermissions
       : creator.permissions || [];
 
     // Verify all requested permissions are within creator limits

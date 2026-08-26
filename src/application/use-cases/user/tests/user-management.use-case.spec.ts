@@ -107,8 +107,45 @@ describe('User Hierarchical Management Use Cases', () => {
   });
 
   describe('CreateUserUseCase', () => {
+    it('should throw ForbiddenException if tenant has reached maximum user quota for their SaaS plan', async () => {
+      userRepository.findByEmail.mockResolvedValue(null);
+      // Simulate 2 existing users on a 2-user limit plan
+      userRepository.findAllByTenant.mockResolvedValue([mockOwner, mockManager]);
+      tenantRepository.findById.mockResolvedValue({
+        ...mockTenant,
+        plan_type: 'EMPRENDEDOR',
+        settings: { max_users: 2 },
+      } as any);
+
+      await expect(
+        createUserUseCase.execute(
+          {
+            id: 'owner-id',
+            role: 'OWNER',
+            tenant_id: 'tenant-1',
+            enabled_modules: ['POS', 'INVENTORY'],
+            permissions: ['pos:create'],
+          },
+          {
+            full_name: 'Third User Attempt',
+            email: 'third@ari.com',
+            password: 'password123',
+            role: UserRole.CASHIER,
+            allowed_modules: [AppModule.POS],
+            allowed_permissions: ['pos:create'],
+          },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
     it('should allow Owner to create any user with valid permissions', async () => {
       userRepository.findByEmail.mockResolvedValue(null);
+      userRepository.findAllByTenant.mockResolvedValue([mockOwner]);
+      tenantRepository.findById.mockResolvedValue({
+        ...mockTenant,
+        plan_type: 'COMERCIAL_PRO',
+        settings: { max_users: 5 },
+      } as any);
 
       const result = await createUserUseCase.execute(
         { 
@@ -116,7 +153,7 @@ describe('User Hierarchical Management Use Cases', () => {
           role: 'OWNER', 
           tenant_id: 'tenant-1', 
           enabled_modules: ['POS', 'INVENTORY', 'PAYROLL'],
-          permissions: ['pos:create', 'pos:discount', 'inventory:view']
+          permissions: ['pos:create', 'pos:discount', 'inventory:stock']
         },
         {
           full_name: 'New Manager',
@@ -124,7 +161,7 @@ describe('User Hierarchical Management Use Cases', () => {
           password: 'password123',
           role: UserRole.MANAGER,
           allowed_modules: [AppModule.POS, AppModule.INVENTORY],
-          allowed_permissions: ['pos:create', 'inventory:view'],
+          allowed_permissions: ['pos:create', 'inventory:stock'],
         },
       );
 
@@ -136,6 +173,12 @@ describe('User Hierarchical Management Use Cases', () => {
 
     it('should allow Manager to create Cashier with subset of permissions', async () => {
       userRepository.findByEmail.mockResolvedValue(null);
+      userRepository.findAllByTenant.mockResolvedValue([mockOwner]);
+      tenantRepository.findById.mockResolvedValue({
+        ...mockTenant,
+        plan_type: 'COMERCIAL_PRO',
+        settings: { max_users: 5 },
+      } as any);
 
       const result = await createUserUseCase.execute(
         { 

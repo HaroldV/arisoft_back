@@ -36,9 +36,9 @@ export enum SystemModuleEnum {
 export const PLAN_DEFAULT_MODULES: Record<SaasPlanEnum, SystemModuleEnum[]> = {
   [SaasPlanEnum.EMPRENDEDOR]: [
     SystemModuleEnum.POS,
-    SystemModuleEnum.SALES,
+    SystemModuleEnum.INVENTORY_PURCHASES,
     SystemModuleEnum.INVENTORY,
-    SystemModuleEnum.REPORTS,
+    SystemModuleEnum.BANKS,
     SystemModuleEnum.SETTINGS,
   ],
   [SaasPlanEnum.COMERCIAL_PRO]: [
@@ -64,18 +64,22 @@ export const PLAN_DEFAULT_MODULES: Record<SaasPlanEnum, SystemModuleEnum[]> = {
 
 export const PLAN_DEFAULT_PERMISSIONS: Record<SaasPlanEnum, string[]> = {
   [SaasPlanEnum.EMPRENDEDOR]: [
+    // 1. Módulo Ventas (POS)
     'pos:create',
     'sales:invoicing',
     'clients:manage',
+    // 2. Módulo Compras (INVENTORY_PURCHASES)
     'purchases:new',
     'purchases:invoices',
     'providers:manage',
+    // 3. Módulo Control de Inventario (INVENTORY)
     'inventory:create',
     'inventory:stock',
+    'inventory:warehouse',
     'inventory:categories',
-    'inventory:moves',
-    'accounts:receivables',
-    'reports:view',
+    // 4. Módulo Cuentas (BANKS)
+    'banks:accounts',
+    // 5. Módulo Configuración de Empresa (SETTINGS)
     'company:manage',
     'fiscal:manage',
     'users:manage'
@@ -90,7 +94,6 @@ export const PLAN_DEFAULT_PERMISSIONS: Record<SaasPlanEnum, string[]> = {
     'pos:shifts',
     'purchases:orders',
     'purchases:receptions',
-    'purchases:new',
     'purchases:invoices',
     'providers:manage',
     'inventory:create',
@@ -119,7 +122,6 @@ export const PLAN_DEFAULT_PERMISSIONS: Record<SaasPlanEnum, string[]> = {
     'pos:shifts',
     'purchases:orders',
     'purchases:receptions',
-    'purchases:new',
     'purchases:invoices',
     'providers:manage',
     'inventory:create',
@@ -150,9 +152,15 @@ export const BACKEND_SYSTEM_CONSTANTS = {
   DEFAULT_PASSWORD_ONBOARDING: process.env.SUPERADMIN_PASSWORD || process.env.SAAS_DEFAULT_ONBOARDING_PASS || 'ArivPassword123!',
   DEFAULT_OWNER_NAME: 'Gerente General',
   PLAN_LIMITS: {
-    EMPRENDEDOR: { USERS: 2, PRODUCTS: 500, FEE_USD: 15 },
-    COMERCIAL_PRO: { USERS: 5, PRODUCTS: 3000, FEE_USD: 35 },
-    CORPORATIVO: { USERS: 25, PRODUCTS: 10000, FEE_USD: 60 },
+    EMPRENDEDOR: { USERS: 2, PRODUCTS: 500, FEE_USD: 25 },
+    COMERCIAL_PRO: { USERS: 5, PRODUCTS: 5000, FEE_USD: 50 },
+    CORPORATIVO: { USERS: 50, PRODUCTS: 999999, FEE_USD: 120 },
+  },
+  SAAS_ADDON_PRICING: {
+    PAYROLL: 10.00,
+    BANKS: 10.00,
+    REPORTS: 8.00,
+    SETTINGS: 5.00,
   },
   MESSAGES: {
     TENANT_CREATED: 'Tenant and Owner user created successfully',
