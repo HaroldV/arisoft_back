@@ -98,30 +98,33 @@ export class SuperAdminController {
         where: { tenant_id: tenant.id, role: UserRole.OWNER }
       });
 
+      const planCode = (tenant.plan_type as SaasPlanEnum) || SaasPlanEnum.COMERCIAL_PRO;
+      const planLimits = BACKEND_SYSTEM_CONSTANTS.PLAN_LIMITS[planCode] || BACKEND_SYSTEM_CONSTANTS.PLAN_LIMITS.COMERCIAL_PRO;
+      const defaultModules = PLAN_DEFAULT_MODULES[planCode] || PLAN_DEFAULT_MODULES[SaasPlanEnum.COMERCIAL_PRO];
+      const defaultPermissions = PLAN_DEFAULT_PERMISSIONS[planCode] || PLAN_DEFAULT_PERMISSIONS[SaasPlanEnum.COMERCIAL_PRO];
+
       result.push({
         id: tenant.id,
         name: tenant.company_name,
         tax_id: tenant.tax_id,
         subdomain: tenant.settings?.subdomain || tenant.company_name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-        plan_name: tenant.plan_type || 'COMERCIAL_PRO',
+        plan_name: tenant.plan_type || SaasPlanEnum.COMERCIAL_PRO,
         status: tenant.is_active ? 'ACTIVE' : 'SUSPENDED',
         user_count: userCount,
         inactive_user_count: inactiveUserCount,
-        max_users: tenant.settings?.max_users || 10,
+        max_users: tenant.settings?.max_users || planLimits.USERS,
         product_count: productCount,
-        max_products: tenant.settings?.max_products || 2500,
-        monthly_fee_usd: tenant.settings?.monthly_fee_usd || 35.00,
+        max_products: tenant.settings?.max_products || planLimits.PRODUCTS,
+        monthly_fee_usd: tenant.settings?.monthly_fee_usd !== undefined ? Number(tenant.settings.monthly_fee_usd) : planLimits.FEE_USD,
+        base_plan_price: tenant.settings?.base_plan_price !== undefined ? Number(tenant.settings.base_plan_price) : (tenant.settings?.monthly_fee_usd || planLimits.FEE_USD),
+        has_custom_pricing: Boolean(tenant.settings?.has_custom_pricing),
+        discount_type: tenant.settings?.discount_type || 'FIXED',
+        discount_value: tenant.settings?.discount_value !== undefined ? Number(tenant.settings.discount_value) : 0,
+        pricing_notes: tenant.settings?.pricing_notes || '',
         subscription_expires_at: tenant.trial_expires_at ? new Date(tenant.trial_expires_at).toISOString().split('T')[0] : '2026-12-31',
         created_at: tenant.created_at ? new Date(tenant.created_at).toISOString().split('T')[0] : '',
-        enabled_modules: tenant.settings?.enabled_modules || ['POS', 'SALES', 'INVENTORY', 'BANKS', 'REPORTS'],
-        enabled_permissions: tenant.settings?.enabled_permissions || [
-          'pos:create', 'sales:invoicing', 'sales:quotations', 'sales:orders', 'sales:deliveries', 'clients:manage', 'pos:shifts',
-          'purchases:orders', 'purchases:receptions', 'purchases:new', 'purchases:invoices', 'providers:manage',
-          'inventory:create', 'inventory:stock', 'inventory:bulk_prices', 'inventory:valuation', 'inventory:warehouse', 'inventory:categories', 'inventory:moves',
-          'banks:accounts', 'accounts:receivables', 'accounts:payables', 'accounts:history',
-          'reports:view',
-          'company:manage', 'fiscal:manage', 'users:manage'
-        ],
+        enabled_modules: tenant.settings?.enabled_modules || defaultModules,
+        enabled_permissions: tenant.settings?.enabled_permissions || defaultPermissions,
         owner_email: ownerUser?.email || tenant.settings?.owner_email || '',
         owner_name: ownerUser?.full_name || tenant.settings?.owner_name || '',
         owner_is_active: ownerUser ? ownerUser.is_active : true,
@@ -201,7 +204,12 @@ export class SuperAdminController {
         subdomain: subdomain || name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
         max_users: Number(max_users || planLimits.USERS),
         max_products: Number(max_products || planLimits.PRODUCTS),
-        monthly_fee_usd: Number(monthly_fee_usd || planLimits.FEE_USD),
+        monthly_fee_usd: Number(monthly_fee_usd !== undefined ? monthly_fee_usd : planLimits.FEE_USD),
+        base_plan_price: Number(body.base_plan_price || planLimits.FEE_USD),
+        has_custom_pricing: Boolean(body.has_custom_pricing),
+        discount_type: body.discount_type || 'FIXED',
+        discount_value: body.discount_value !== undefined ? Number(body.discount_value) : 0,
+        pricing_notes: body.pricing_notes ? String(body.pricing_notes).trim() : '',
         enabled_modules: enabled_modules || defaultPlanModules,
         enabled_permissions: enabled_permissions || defaultPlanPermissions,
         owner_email: cleanEmail,
@@ -321,11 +329,18 @@ export class SuperAdminController {
       max_users: max_users !== undefined ? Number(max_users) : tenant.settings?.max_users,
       max_products: max_products !== undefined ? Number(max_products) : tenant.settings?.max_products,
       monthly_fee_usd: monthly_fee_usd !== undefined ? Number(monthly_fee_usd) : tenant.settings?.monthly_fee_usd,
+      base_plan_price: body.base_plan_price !== undefined ? Number(body.base_plan_price) : tenant.settings?.base_plan_price,
+      has_custom_pricing: body.has_custom_pricing !== undefined ? Boolean(body.has_custom_pricing) : tenant.settings?.has_custom_pricing,
+      discount_type: body.discount_type !== undefined ? body.discount_type : tenant.settings?.discount_type,
+      discount_value: body.discount_value !== undefined ? Number(body.discount_value) : tenant.settings?.discount_value,
+      pricing_notes: body.pricing_notes !== undefined ? String(body.pricing_notes).trim() : tenant.settings?.pricing_notes,
       enabled_modules: enabled_modules || tenant.settings?.enabled_modules,
       enabled_permissions: enabled_permissions || tenant.settings?.enabled_permissions,
       owner_email: owner_email ? owner_email.toLowerCase().trim() : tenant.settings?.owner_email,
       owner_name: owner_name || tenant.settings?.owner_name
     };
+
+    await this.dataSource.getRepository(Tenant).save(tenant);
 
     let defaultPasswordReset: string | undefined = undefined;
     const targetEmail = owner_email ? owner_email.toLowerCase().trim() : tenant.settings?.owner_email?.toLowerCase().trim();
