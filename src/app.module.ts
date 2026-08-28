@@ -325,6 +325,24 @@ export class AppModule implements OnModuleInit {
         }
       }
 
+      // Ensure system default tenant exists for SuperAdmin
+      const tenantRepository = this.dataSource.getRepository(Tenant);
+      const defaultTenantId = BACKEND_SYSTEM_CONSTANTS.DEFAULT_SYSTEM_TENANT_ID;
+      const existingTenant = await tenantRepository.findOne({ where: { id: defaultTenantId } });
+      
+      if (!existingTenant) {
+        const systemTenant = new Tenant({
+          id: defaultTenantId,
+          company_name: 'ArivSoft System Administration',
+          tax_id: 'J-00000000-0',
+          plan_type: 'ENTERPRISE',
+          trial_expires_at: new Date('2099-12-31'),
+          is_active: true,
+          plan_is_active: true,
+        });
+        await tenantRepository.save(systemTenant);
+      }
+
       // Ensure configured SuperAdmin user exists, is active, unlocked and has correct password on startup via TypeORM Repository
       const targetSuperAdminEmail = BACKEND_SYSTEM_CONSTANTS.SUPERADMIN_EMAIL.toLowerCase().trim();
       const rawPassword = BACKEND_SYSTEM_CONSTANTS.DEFAULT_PASSWORD_ONBOARDING;
@@ -350,7 +368,7 @@ export class AppModule implements OnModuleInit {
       } else {
         const newSuperAdmin = new User({
           id: 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a99',
-          tenant_id: BACKEND_SYSTEM_CONSTANTS.DEFAULT_SYSTEM_TENANT_ID,
+          tenant_id: defaultTenantId,
           full_name: 'Super Admin',
           email: targetSuperAdminEmail,
           password_hash: freshHash,

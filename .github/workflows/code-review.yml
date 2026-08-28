@@ -1,0 +1,66 @@
+name: AI Code Review & Architecture Quality Gate
+
+on:
+  pull_request:
+    branches: [ develop, main ]
+
+jobs:
+  code-architecture-audit:
+    name: Clean Architecture & AGENTS.md Standards Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 1. Verify No Raw SQL in Application Layer
+        run: |
+          echo "🔍 Scanning for raw SQL queries in application layer..."
+          RAW_SQL_COUNT=$(grep -rn "dataSource.query" src/application/ src/presentation/ 2>/dev/null | grep -v "\.spec\.ts" | wc -l || true)
+          if [ "$RAW_SQL_COUNT" -gt 0 ]; then
+            echo "❌ Violation: Found raw SQL queries (dataSource.query) in UseCases or Controllers."
+            grep -rn "dataSource.query" src/application/ src/presentation/ | grep -v "\.spec\.ts"
+            echo "Rule: Use TypeORM Repositories (@InjectRepository) instead."
+            exit 1
+          fi
+          echo "✅ Clean Architecture: 0 raw SQL queries found in UseCases/Controllers."
+
+      - name: 2. Verify Zero Hardcoded Secrets Pattern in TypeScript Code
+        run: |
+          echo "🔍 Auditing TypeScript source files for sensitive keys or passwords..."
+          SUSPICIOUS_SECRETS=$(grep -rnE "(password_hash\s*=\s*['\"][^'\"]{10,}['\"]|SECRET_KEY\s*=\s*['\"][^'\"]+['\"])" src/ --include="*.ts" 2>/dev/null | grep -v "\.spec\.ts" | wc -l || true)
+          if [ "$SUSPICIOUS_SECRETS" -gt 0 ]; then
+            echo "❌ Security Alert: Hardcoded credentials or secrets pattern detected in TypeScript source files:"
+            grep -rnE "(password_hash\s*=\s*['\"][^'\"]{10,}['\"]|SECRET_KEY\s*=\s*['\"][^'\"]+['\"])" src/ --include="*.ts" | grep -v "\.spec\.ts"
+            exit 1
+          fi
+          echo "✅ Security: 0 hardcoded credentials detected in TypeScript source code."
+
+      - name: 3. Verify Database Migration Non-Destructive Safety in PR Changes
+        run: |
+          echo "🔍 Auditing modified or newly added SQL migrations in this PR for destructive operations..."
+          git fetch origin ${{ github.base_ref }} --depth=1 || true
+          CHANGED_MIGRATIONS=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'src/infrastructure/persistence/typeorm/migrations/*.sql' 2>/dev/null || true)
+          
+          if [ -n "$CHANGED_MIGRATIONS" ]; then
+            echo "Inspecting migration files changed in this PR: $CHANGED_MIGRATIONS"
+            DESTRUCTIVE_SQL=$(echo "$CHANGED_MIGRATIONS" | xargs grep -iE "(DROP\s+COLUMN|DROP\s+TABLE|TRUNCATE\s+TABLE)" 2>/dev/null || true)
+            if [ -n "$DESTRUCTIVE_SQL" ]; then
+              echo "❌ Zero-Downtime DB Alert: Destructive SQL operations detected in PR migrations:"
+              echo "$DESTRUCTIVE_SQL"
+              echo "Rule: Use additive-only migrations with backward compatibility."
+              exit 1
+            fi
+          else
+            echo "No SQL migration files modified in this PR."
+          fi
+          echo "✅ DB Safety: 0 destructive migration commands found in PR changes."
+
+      - name: 4. Verify No Raw Body Any in Controllers
+        run: |
+          echo "🔍 Auditing controller endpoints for strong DTO validation..."
+          UNTYPED_BODY=$(grep -rnE "@Body\(\)\s+[a-zA-Z0-9_]+\s*:\s*any" src/presentation/web/controllers/ 2>/dev/null | grep -v "\.spec\.ts" | wc -l || true)
+          if [ "$UNTYPED_BODY" -gt 0 ]; then
+            echo "⚠️ Notice: Found untyped body parameters in controllers. Use specific DTO classes with class-validator."
+            grep -rnE "@Body\(\)\s+[a-zA-Z0-9_]+\s*:\s*any" src/presentation/web/controllers/ | grep -v "\.spec\.ts"
+          fi
+          echo "✅ DTO Type Audit completed."
