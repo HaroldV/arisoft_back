@@ -1,0 +1,35 @@
+name: AI Code Review & Architecture Quality Gate
+
+on:
+  pull_request:
+    branches: [ develop, main ]
+
+jobs:
+  code-architecture-audit:
+    name: Clean Architecture & AGENTS.md Standards Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Verify No Raw SQL in UseCases/Controllers
+        run: |
+          echo "🔍 Scanning for raw SQL queries in application layer..."
+          RAW_SQL_COUNT=$(grep -rn "dataSource.query" src/application/ src/presentation/ 2>/dev/null | grep -v "\.spec\.ts" | wc -l || true)
+          if [ "$RAW_SQL_COUNT" -gt 0 ]; then
+            echo "❌ Violation: Found raw SQL queries (dataSource.query) in UseCases or Controllers."
+            grep -rn "dataSource.query" src/application/ src/presentation/ | grep -v "\.spec\.ts"
+            echo "Rule: Use TypeORM Repositories (@InjectRepository) instead."
+            exit 1
+          fi
+          echo "✅ Clean Architecture: 0 raw SQL queries found in UseCases/Controllers."
+
+      - name: Verify Zero Hardcoded Secrets Pattern
+        run: |
+          echo "🔍 Auditing for sensitive keys or passwords..."
+          SUSPICIOUS_SECRETS=$(grep -rnE "(password_hash\s*=\s*['\"][^'\"]{10,}['\"]|SECRET_KEY\s*=\s*['\"][^'\"]+['\"])" src/ 2>/dev/null | grep -v "\.spec\.ts" | wc -l || true)
+          if [ "$SUSPICIOUS_SECRETS" -gt 0 ]; then
+            echo "❌ Security Alert: Hardcoded credentials or secrets pattern detected."
+            exit 1
+          fi
+          echo "✅ Security: 0 hardcoded credentials detected."
