@@ -12,7 +12,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Verify No Raw SQL in UseCases/Controllers
+      - name: 1. Verify No Raw SQL in Application Layer
         run: |
           echo "🔍 Scanning for raw SQL queries in application layer..."
           RAW_SQL_COUNT=$(grep -rn "dataSource.query" src/application/ src/presentation/ 2>/dev/null | grep -v "\.spec\.ts" | wc -l || true)
@@ -24,7 +24,7 @@ jobs:
           fi
           echo "✅ Clean Architecture: 0 raw SQL queries found in UseCases/Controllers."
 
-      - name: Verify Zero Hardcoded Secrets Pattern in TypeScript Code
+      - name: 2. Verify Zero Hardcoded Secrets Pattern in TypeScript Code
         run: |
           echo "🔍 Auditing TypeScript source files for sensitive keys or passwords..."
           SUSPICIOUS_SECRETS=$(grep -rnE "(password_hash\s*=\s*['\"][^'\"]{10,}['\"]|SECRET_KEY\s*=\s*['\"][^'\"]+['\"])" src/ --include="*.ts" 2>/dev/null | grep -v "\.spec\.ts" | wc -l || true)
@@ -34,3 +34,25 @@ jobs:
             exit 1
           fi
           echo "✅ Security: 0 hardcoded credentials detected in TypeScript source code."
+
+      - name: 3. Verify Database Migration Non-Destructive Safety
+        run: |
+          echo "🔍 Scanning SQL migrations for destructive operations (DROP TABLE / DROP COLUMN)..."
+          DESTRUCTIVE_SQL=$(grep -rniE "(DROP\s+COLUMN|DROP\s+TABLE|TRUNCATE\s+TABLE)" src/infrastructure/persistence/typeorm/migrations/ 2>/dev/null | wc -l || true)
+          if [ "$DESTRUCTIVE_SQL" -gt 0 ]; then
+            echo "❌ Zero-Downtime DB Alert: Destructive SQL operations detected in migrations."
+            grep -rniE "(DROP\s+COLUMN|DROP\s+TABLE|TRUNCATE\s+TABLE)" src/infrastructure/persistence/typeorm/migrations/
+            echo "Rule: Use additive-only migrations with backward compatibility."
+            exit 1
+          fi
+          echo "✅ DB Safety: 0 destructive migration commands found."
+
+      - name: 4. Verify No Raw Body Any in Controllers
+        run: |
+          echo "🔍 Auditing controller endpoints for strong DTO validation..."
+          UNTYPED_BODY=$(grep -rnE "@Body\(\)\s+[a-zA-Z0-9_]+\s*:\s*any" src/presentation/web/controllers/ 2>/dev/null | grep -v "\.spec\.ts" | wc -l || true)
+          if [ "$UNTYPED_BODY" -gt 0 ]; then
+            echo "⚠️ Notice: Found untyped body parameters in controllers. Use specific DTO classes with class-validator."
+            grep -rnE "@Body\(\)\s+[a-zA-Z0-9_]+\s*:\s*any" src/presentation/web/controllers/ | grep -v "\.spec\.ts"
+          fi
+          echo "✅ DTO Type Audit completed."
