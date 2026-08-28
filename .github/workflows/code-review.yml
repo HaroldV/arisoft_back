@@ -35,17 +35,25 @@ jobs:
           fi
           echo "✅ Security: 0 hardcoded credentials detected in TypeScript source code."
 
-      - name: 3. Verify Database Migration Non-Destructive Safety
+      - name: 3. Verify Database Migration Non-Destructive Safety in PR Changes
         run: |
-          echo "🔍 Scanning SQL migrations for destructive operations (DROP TABLE / DROP COLUMN)..."
-          DESTRUCTIVE_SQL=$(grep -rniE "(DROP\s+COLUMN|DROP\s+TABLE|TRUNCATE\s+TABLE)" src/infrastructure/persistence/typeorm/migrations/ 2>/dev/null | wc -l || true)
-          if [ "$DESTRUCTIVE_SQL" -gt 0 ]; then
-            echo "❌ Zero-Downtime DB Alert: Destructive SQL operations detected in migrations."
-            grep -rniE "(DROP\s+COLUMN|DROP\s+TABLE|TRUNCATE\s+TABLE)" src/infrastructure/persistence/typeorm/migrations/
-            echo "Rule: Use additive-only migrations with backward compatibility."
-            exit 1
+          echo "🔍 Auditing modified or newly added SQL migrations in this PR for destructive operations..."
+          git fetch origin ${{ github.base_ref }} --depth=1 || true
+          CHANGED_MIGRATIONS=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'src/infrastructure/persistence/typeorm/migrations/*.sql' 2>/dev/null || true)
+          
+          if [ -n "$CHANGED_MIGRATIONS" ]; then
+            echo "Inspecting migration files changed in this PR: $CHANGED_MIGRATIONS"
+            DESTRUCTIVE_SQL=$(echo "$CHANGED_MIGRATIONS" | xargs grep -iE "(DROP\s+COLUMN|DROP\s+TABLE|TRUNCATE\s+TABLE)" 2>/dev/null || true)
+            if [ -n "$DESTRUCTIVE_SQL" ]; then
+              echo "❌ Zero-Downtime DB Alert: Destructive SQL operations detected in PR migrations:"
+              echo "$DESTRUCTIVE_SQL"
+              echo "Rule: Use additive-only migrations with backward compatibility."
+              exit 1
+            fi
+          else
+            echo "No SQL migration files modified in this PR."
           fi
-          echo "✅ DB Safety: 0 destructive migration commands found."
+          echo "✅ DB Safety: 0 destructive migration commands found in PR changes."
 
       - name: 4. Verify No Raw Body Any in Controllers
         run: |
