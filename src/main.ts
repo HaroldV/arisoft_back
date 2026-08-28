@@ -66,7 +66,7 @@ async function bootstrap() {
   httpAdapter.get('/api/health', (req: any, res: any) => res.json({ status: 'ok', time: new Date().toISOString() }));
   httpAdapter.get('/', (req: any, res: any) => res.json({ status: 'ok', service: 'ARI ERP Backend API' }));
 
-  const port = parseInt(process.env.PORT || '4000', 10);
+  const port = parseInt(process.env.PORT || '8080', 10);
   await app.listen(port, '0.0.0.0');
   console.log(`🚀 ARI Backend running on port: ${port}`);
   console.log(`📚 Swagger documentation: http://localhost:${port}/api`);
