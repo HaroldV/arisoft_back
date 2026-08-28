@@ -147,4 +147,15 @@ describe('AuthController (Unit & Integration Tests)', () => {
       expect(res).toEqual({ message: 'Logged out successfully' });
     });
   });
+
+  describe('POST /auth/change-password', () => {
+    it('should extract userId and update password successfully', async () => {
+      const req = { user: { sub: 'usr-123' } };
+      const body = { newPassword: 'NewStrongPassword123!' };
+
+      const res = await controller.changePassword(req, body);
+
+      expect(res).toEqual({ success: true });
+    });
+  });
 });
