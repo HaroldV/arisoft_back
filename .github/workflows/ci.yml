@@ -54,12 +54,12 @@ jobs:
       - name: 3. Run Unit & Multi-Tenant Tests
         env:
           NODE_ENV: test
-          DB_HOST: 127.0.0.1
-          DB_PORT: 5432
-          DB_USER: ari_admin
-          DB_PASSWORD: ari_password_2026
-          DB_NAME: ari_erp_db
-          JWT_SECRET: ci-pipeline-test-secret-key-12345
+          DB_HOST: ${{ secrets.CI_DB_HOST || '127.0.0.1' }}
+          DB_PORT: ${{ secrets.CI_DB_PORT || 5432 }}
+          DB_USER: ${{ secrets.CI_DB_USER || 'ari_admin' }}
+          DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD || 'ari_password_2026' }}
+          DB_NAME: ${{ secrets.CI_DB_NAME || 'ari_erp_db' }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-pipeline-ephemeral-secret-key-12345' }}
         run: npm test -- --coverage --maxWorkers=2
 
       - name: 4. Build Production Bundle
@@ -67,23 +67,24 @@ jobs:
 
       - name: 5. Zero-Downtime Health Probe Check
         env:
-          PORT: 8080
+          PORT: ${{ vars.PORT || 8080 }}
           NODE_ENV: production
-          DB_HOST: 127.0.0.1
-          DB_PORT: 5432
-          DB_USER: ari_admin
-          DB_PASSWORD: ari_password_2026
-          DB_NAME: ari_erp_db
-          JWT_SECRET: ci-pipeline-test-secret-key-12345
+          DB_HOST: ${{ secrets.CI_DB_HOST || '127.0.0.1' }}
+          DB_PORT: ${{ secrets.CI_DB_PORT || 5432 }}
+          DB_USER: ${{ secrets.CI_DB_USER || 'ari_admin' }}
+          DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD || 'ari_password_2026' }}
+          DB_NAME: ${{ secrets.CI_DB_NAME || 'ari_erp_db' }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-pipeline-ephemeral-secret-key-12345' }}
         run: |
+          PROBE_PORT="${PORT:-8080}"
           node dist/main.js &
           SERVER_PID=$!
-          echo "Waiting for server startup on port 8080 (PID: $SERVER_PID)..."
+          echo "Waiting for server startup on port $PROBE_PORT (PID: $SERVER_PID)..."
           
           # Poll health endpoint up to 30 seconds
           for i in {1..30}; do
-            if curl -s -f http://127.0.0.1:8080/health > /dev/null; then
-              echo "✅ Health check probe succeeded on http://127.0.0.1:8080/health!"
+            if curl -s -f "http://127.0.0.1:$PROBE_PORT/health" > /dev/null; then
+              echo "✅ Health check probe succeeded on http://127.0.0.1:$PROBE_PORT/health!"
               kill $SERVER_PID
               exit 0
             fi
