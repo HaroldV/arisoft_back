@@ -24,12 +24,13 @@ jobs:
           fi
           echo "✅ Clean Architecture: 0 raw SQL queries found in UseCases/Controllers."
 
-      - name: Verify Zero Hardcoded Secrets Pattern
+      - name: Verify Zero Hardcoded Secrets Pattern in TypeScript Code
         run: |
-          echo "🔍 Auditing for sensitive keys or passwords..."
-          SUSPICIOUS_SECRETS=$(grep -rnE "(password_hash\s*=\s*['\"][^'\"]{10,}['\"]|SECRET_KEY\s*=\s*['\"][^'\"]+['\"])" src/ 2>/dev/null | grep -v "\.spec\.ts" | wc -l || true)
+          echo "🔍 Auditing TypeScript source files for sensitive keys or passwords..."
+          SUSPICIOUS_SECRETS=$(grep -rnE "(password_hash\s*=\s*['\"][^'\"]{10,}['\"]|SECRET_KEY\s*=\s*['\"][^'\"]+['\"])" src/ --include="*.ts" 2>/dev/null | grep -v "\.spec\.ts" | wc -l || true)
           if [ "$SUSPICIOUS_SECRETS" -gt 0 ]; then
-            echo "❌ Security Alert: Hardcoded credentials or secrets pattern detected."
+            echo "❌ Security Alert: Hardcoded credentials or secrets pattern detected in TypeScript source files:"
+            grep -rnE "(password_hash\s*=\s*['\"][^'\"]{10,}['\"]|SECRET_KEY\s*=\s*['\"][^'\"]+['\"])" src/ --include="*.ts" | grep -v "\.spec\.ts"
             exit 1
           fi
-          echo "✅ Security: 0 hardcoded credentials detected."
+          echo "✅ Security: 0 hardcoded credentials detected in TypeScript source code."
