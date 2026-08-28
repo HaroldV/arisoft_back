@@ -16,9 +16,9 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: ari_admin
-          POSTGRES_PASSWORD: ari_password_2026
-          POSTGRES_DB: ari_erp_db
+          POSTGRES_USER: ${{ secrets.CI_DB_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.CI_DB_NAME }}
         ports:
           - 5432:5432
         options: >-
@@ -54,12 +54,12 @@ jobs:
       - name: 3. Run Unit & Multi-Tenant Tests
         env:
           NODE_ENV: test
-          DB_HOST: ${{ secrets.CI_DB_HOST || '127.0.0.1' }}
-          DB_PORT: ${{ secrets.CI_DB_PORT || 5432 }}
-          DB_USER: ${{ secrets.CI_DB_USER || 'ari_admin' }}
-          DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD || 'ari_password_2026' }}
-          DB_NAME: ${{ secrets.CI_DB_NAME || 'ari_erp_db' }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-pipeline-ephemeral-secret-key-12345' }}
+          DB_HOST: ${{ secrets.CI_DB_HOST }}
+          DB_PORT: ${{ secrets.CI_DB_PORT }}
+          DB_USER: ${{ secrets.CI_DB_USER }}
+          DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
+          DB_NAME: ${{ secrets.CI_DB_NAME }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: npm test -- --coverage --maxWorkers=2
 
       - name: 4. Build Production Bundle
@@ -67,14 +67,14 @@ jobs:
 
       - name: 5. Zero-Downtime Health Probe Check
         env:
-          PORT: ${{ vars.PORT || 8080 }}
+          PORT: ${{ vars.PORT }}
           NODE_ENV: production
-          DB_HOST: ${{ secrets.CI_DB_HOST || '127.0.0.1' }}
-          DB_PORT: ${{ secrets.CI_DB_PORT || 5432 }}
-          DB_USER: ${{ secrets.CI_DB_USER || 'ari_admin' }}
-          DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD || 'ari_password_2026' }}
-          DB_NAME: ${{ secrets.CI_DB_NAME || 'ari_erp_db' }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-pipeline-ephemeral-secret-key-12345' }}
+          DB_HOST: ${{ secrets.CI_DB_HOST }}
+          DB_PORT: ${{ secrets.CI_DB_PORT }}
+          DB_USER: ${{ secrets.CI_DB_USER }}
+          DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
+          DB_NAME: ${{ secrets.CI_DB_NAME }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           PROBE_PORT="${PORT:-8080}"
           node dist/main.js &
