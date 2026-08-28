@@ -48,7 +48,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
-      - name: 2. ESLint Code Standards
+      - name: 2. TypeScript Strict Typecheck & Code Standards
         run: npm run lint
 
       - name: 3. Run Unit & Multi-Tenant Tests
