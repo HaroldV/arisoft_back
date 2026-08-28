@@ -60,6 +60,12 @@ async function bootstrap() {
   // Swagger Configuration
   setupSwagger(app);
 
+  // Root & Healthcheck endpoints for Railway deployment probes
+  const httpAdapter = app.getHttpAdapter();
+  httpAdapter.get('/health', (req: any, res: any) => res.json({ status: 'ok', time: new Date().toISOString() }));
+  httpAdapter.get('/api/health', (req: any, res: any) => res.json({ status: 'ok', time: new Date().toISOString() }));
+  httpAdapter.get('/', (req: any, res: any) => res.json({ status: 'ok', service: 'ARI ERP Backend API' }));
+
   const port = process.env.PORT || 4000;
   await app.listen(port, '0.0.0.0');
   console.log(`🚀 ARI Backend running on port: ${port}`);
