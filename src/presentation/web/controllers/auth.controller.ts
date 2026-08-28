@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, HttpCode, HttpStatus, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
@@ -27,6 +27,13 @@ export class AuthController {
     private readonly logoutUseCase: LogoutUseCase,
     private readonly changeInitialPasswordUseCase: ChangeInitialPasswordUseCase,
   ) {}
+
+  @Get('health')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Health check endpoint' })
+  healthCheck() {
+    return { status: 'ok', timestamp: new Date().toISOString() };
+  }
 
   private extractRefreshToken(req: Request): string | undefined {
     const bodyToken = req.body?.refresh_token;
