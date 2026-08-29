@@ -72,7 +72,33 @@ describe('BulkUploadProductsUseCase', () => {
 
     expect(result.success).toHaveLength(1);
     expect(result.success[0].sku).toBe('SKU-1');
-    expect(mockManager.save).toHaveBeenCalledTimes(2);
+    // Saves: Product, StockMove, StockBalance
+    expect(mockManager.save).toHaveBeenCalledTimes(3);
+  });
+
+  it('should auto-create default warehouse when tenant does not have one and initial stock is 0', async () => {
+    const products = [
+      {
+        sku: 'SKU-ZERO',
+        name: 'Product Zero Stock',
+        costUsd: 10,
+        priceUsd: 15,
+        taxRate: 16,
+        initialStock: 0,
+      },
+    ];
+
+    productRepo.findBySkus.mockResolvedValue([]);
+    mockManager.findOne.mockResolvedValue(null); // No warehouse found
+
+    const result = await useCase.execute(tenantId, products);
+
+    expect(result.success).toHaveLength(1);
+    // Saves: Category (if not found), Product, Default WarehouseLocation
+    expect(mockManager.save).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ name: 'Almacén Principal' })
+    );
   });
 
   it('should maintain tenant isolation (AC: #1)', async () => {

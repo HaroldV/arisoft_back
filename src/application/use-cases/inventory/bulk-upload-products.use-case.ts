@@ -104,14 +104,90 @@ export class BulkUploadProductsUseCase {
               created_by_user_name: user?.name,
             }));
 
-            // Create immutable initial stock movement
-            const move = await manager.save(StockMove, new StockMove({
-              tenant_id: tenantId,
-              product_id: product.id,
-              type: StockMoveType.INITIAL_LOAD,
-              quantity: productData.initialStock,
-              cost_at_time: productData.costUsd,
-            }));
+            // Create immutable initial stock movement if initialStock is specified
+            const initialQty = Number(productData.initialStock || 0);
+            if (initialQty > 0 || productData.locationId) {
+              const move = await manager.save(StockMove, new StockMove({
+                tenant_id: tenantId,
+                product_id: product.id,
+                type: StockMoveType.INITIAL_LOAD,
+                quantity: initialQty,
+                cost_at_time: productData.costUsd || 0,
+              }));
+
+              // Resolve or auto-create default warehouse location
+              let resolvedLocationId = productData.locationId;
+              if (!resolvedLocationId) {
+                let defaultLoc = await manager.findOne(WarehouseLocation, {
+                  where: { tenant_id: tenantId, type: LocationType.WAREHOUSE }
+                });
+                if (!defaultLoc) {
+                  defaultLoc = await manager.save(WarehouseLocation, new WarehouseLocation({
+                    tenant_id: tenantId,
+                    name: 'Almacén Principal',
+                    type: LocationType.WAREHOUSE,
+                    capacity_limit: 0
+                  }));
+                }
+                resolvedLocationId = defaultLoc.id;
+              }
+
+              // Resolve batch if batch control or perishable is enabled
+              let resolvedBatchId: string | null = null;
+              if ((product.has_batch_control || product.is_perishable) && productData.batchNumber) {
+                const batchNum = productData.batchNumber.trim().toUpperCase();
+                let batch = await manager.findOne(ProductBatch, {
+                  where: { tenant_id: tenantId, product_id: product.id, batch_number: batchNum }
+                });
+                if (!batch) {
+                  batch = await manager.save(ProductBatch, new ProductBatch({
+                    tenant_id: tenantId,
+                    product_id: product.id,
+                    batch_number: batchNum,
+                    production_date: productData.productionDate || undefined,
+                    expiration_date: productData.expirationDate || undefined
+                  }));
+                }
+                resolvedBatchId = batch.id;
+              }
+
+              // Upsert StockBalance in WMS
+              if (initialQty > 0) {
+                let balance = await manager.findOne(StockBalance, {
+                  where: {
+                    tenant_id: tenantId,
+                    location_id: resolvedLocationId,
+                    product_id: product.id,
+                    batch_id: resolvedBatchId || undefined,
+                  }
+                });
+                if (balance) {
+                  balance.quantity = Number(balance.quantity) + initialQty;
+                  await manager.save(StockBalance, balance);
+                } else {
+                  await manager.save(StockBalance, new StockBalance({
+                    tenant_id: tenantId,
+                    location_id: resolvedLocationId,
+                    product_id: product.id,
+                    batch_id: resolvedBatchId || null,
+                    quantity: initialQty
+                  }));
+                }
+              }
+            } else {
+              // Ensure default warehouse exists for the tenant even if initial stock is 0
+              let defaultLoc = await manager.findOne(WarehouseLocation, {
+                where: { tenant_id: tenantId, type: LocationType.WAREHOUSE }
+              });
+              if (!defaultLoc) {
+                await manager.save(WarehouseLocation, new WarehouseLocation({
+                  tenant_id: tenantId,
+                  name: 'Almacén Principal',
+                  type: LocationType.WAREHOUSE,
+                  capacity_limit: 0
+                }));
+              }
+            }
 
             results.success.push({
               line: index + 1,

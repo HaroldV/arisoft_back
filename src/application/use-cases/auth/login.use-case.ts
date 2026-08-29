@@ -62,7 +62,7 @@ export class LoginUseCase {
     const isTenantActive = tenant ? tenant.is_active : true;
     const isPlanActive = user.role === 'SUPER_ADMIN' ? true : (tenant ? Boolean(tenant.plan_is_active) : false);
 
-    const tenantModules = tenant?.settings?.enabled_modules || ['POS', 'INVENTORY', 'SETTINGS', 'BANKS', 'PAYROLL']; // Default modules
+    const tenantModules = tenant?.settings?.enabled_modules || ['POS', 'SALES', 'INVENTORY_PURCHASES', 'INVENTORY', 'SETTINGS', 'BANKS', 'PAYROLL', 'REPORTS']; // Default modules
     
     // Calculate trial days left
     const now = new Date();
@@ -100,16 +100,16 @@ export class LoginUseCase {
     const permissionToModuleMap: Record<string, string> = {
       'pos:create': 'POS',
       'sales:invoicing': 'POS',
-      'sales:quotations': 'POS',
-      'sales:orders': 'POS',
-      'sales:deliveries': 'POS',
       'clients:manage': 'POS',
       'pos:shifts': 'POS',
-      'purchases:orders': 'INVENTORY',
-      'purchases:receptions': 'INVENTORY',
-      'purchases:new': 'INVENTORY',
-      'purchases:invoices': 'INVENTORY',
-      'providers:manage': 'INVENTORY',
+      'sales:quotations': 'SALES',
+      'sales:orders': 'SALES',
+      'sales:deliveries': 'SALES',
+      'purchases:orders': 'INVENTORY_PURCHASES',
+      'purchases:receptions': 'INVENTORY_PURCHASES',
+      'purchases:new': 'INVENTORY_PURCHASES',
+      'purchases:invoices': 'INVENTORY_PURCHASES',
+      'providers:manage': 'INVENTORY_PURCHASES',
       'inventory:create': 'INVENTORY',
       'inventory:stock': 'INVENTORY',
       'inventory:bulk_prices': 'INVENTORY',

@@ -55,7 +55,7 @@ export class RefreshTokenUseCase {
 
     // 5. Resolve Tenant and fallback modules
     const tenant = await this.tenantRepository.findById(user.tenant_id);
-    const tenantModules = tenant?.settings?.enabled_modules || ['POS', 'INVENTORY', 'SETTINGS', 'BANKS', 'PAYROLL'];
+    const tenantModules = tenant?.settings?.enabled_modules || ['POS', 'SALES', 'INVENTORY_PURCHASES', 'INVENTORY', 'SETTINGS', 'BANKS', 'PAYROLL', 'REPORTS'];
 
     // Calculate trial days left
     const expiresAtDate = tenant?.trial_expires_at ? new Date(tenant.trial_expires_at) : now;
@@ -85,22 +85,33 @@ export class RefreshTokenUseCase {
     // Resolve enabled modules dynamically from resolved permissions
     const permissionToModuleMap: Record<string, string> = {
       'pos:create': 'POS',
-      'pos:discount': 'POS',
-      'pos:refund': 'POS',
+      'sales:invoicing': 'POS',
       'clients:manage': 'POS',
-      'inventory:view': 'INVENTORY',
-      'inventory:write': 'INVENTORY',
-      'inventory:adjust': 'INVENTORY',
-      'purchases:register': 'INVENTORY',
-      'providers:manage': 'INVENTORY',
-      'banks:view': 'BANKS',
-      'banks:write': 'BANKS',
-      'banks:transfer': 'BANKS',
+      'pos:shifts': 'POS',
+      'sales:quotations': 'SALES',
+      'sales:orders': 'SALES',
+      'sales:deliveries': 'SALES',
+      'purchases:orders': 'INVENTORY_PURCHASES',
+      'purchases:receptions': 'INVENTORY_PURCHASES',
+      'purchases:new': 'INVENTORY_PURCHASES',
+      'purchases:invoices': 'INVENTORY_PURCHASES',
+      'providers:manage': 'INVENTORY_PURCHASES',
+      'inventory:create': 'INVENTORY',
+      'inventory:stock': 'INVENTORY',
+      'inventory:bulk_prices': 'INVENTORY',
+      'inventory:valuation': 'INVENTORY',
+      'inventory:warehouse': 'INVENTORY',
+      'inventory:categories': 'INVENTORY',
+      'inventory:moves': 'INVENTORY',
+      'banks:accounts': 'BANKS',
+      'accounts:receivables': 'BANKS',
+      'accounts:payables': 'BANKS',
+      'accounts:history': 'BANKS',
       'payroll:manage': 'PAYROLL',
       'reports:view': 'REPORTS',
-      'users:manage': 'SETTINGS',
-      'fiscal:manage': 'SETTINGS',
       'company:manage': 'SETTINGS',
+      'fiscal:manage': 'SETTINGS',
+      'users:manage': 'SETTINGS',
     };
 
     let enabledModules = tenantModules;
