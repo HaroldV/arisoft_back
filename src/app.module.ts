@@ -152,6 +152,8 @@ import { FileUploadController } from './presentation/web/controllers/file-upload
 import { UploadImageUseCase } from './application/use-cases/file/upload-image.use-case';
 import { S3Service } from './infrastructure/storage/s3-service';
 
+import { DatabaseMigrationService } from './infrastructure/persistence/typeorm/services/database-migration.service';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -198,17 +200,39 @@ import { S3Service } from './infrastructure/storage/s3-service';
     ThrottlerModule.forRoot([
       {
         name: 'default',
-        ttl: 60000, // 1 minute
-        limit: 100, // General limit: 100 requests per minute
+        ttl: 60000,
+        limit: 100,
       },
     ]),
   ],
-  controllers: [InventoryController, AuthController, CommercialDocumentsController, SalesController, CashShiftsController, ProvidersController, ClientsController, BankAccountsController, CategoriesController, WarehouseLocationsController, FiscalRangesController, TenantProfileController, UsersController, RolesController, AccountsController, PurchasesController, SuperAdminController, SubscriptionController, FileUploadController],
+  controllers: [
+    InventoryController,
+    AuthController,
+    CommercialDocumentsController,
+    SalesController,
+    CashShiftsController,
+    ProvidersController,
+    ClientsController,
+    BankAccountsController,
+    CategoriesController,
+    WarehouseLocationsController,
+    FiscalRangesController,
+    TenantProfileController,
+    UsersController,
+    RolesController,
+    AccountsController,
+    PurchasesController,
+    SuperAdminController,
+    SubscriptionController,
+    FileUploadController,
+  ],
   providers: [
+    // Use Cases
     BulkUploadProductsUseCase,
     RegisterPurchaseUseCase,
     UpdateProductUseCase,
     DeleteProductUseCase,
+    CreateStockAdjustmentUseCase,
     CreateSaleUseCase,
     OpenShiftUseCase,
     GetActiveShiftUseCase,
@@ -229,32 +253,46 @@ import { S3Service } from './infrastructure/storage/s3-service';
     UpdateCompanyProfileUseCase,
     CreatePurchaseOrderUseCase,
     CreatePurchaseReceptionUseCase,
+    CancelAndReplacePurchaseOrderUseCase,
     BulkUpdatePricesUseCase,
+    CreateCommercialDocumentUseCase,
+    ConvertCommercialDocumentUseCase,
+    CreateRoleUseCase,
+    ListRolesUseCase,
+    CreateUserUseCase,
+    ListUsersUseCase,
+    UpdateUserUseCase,
+    CreateAccountUseCase,
+    RegisterPaymentUseCase,
+    BulkImportAccountsUseCase,
+    SaasPlanManagementUseCase,
+    RegisterSubscriptionPaymentUseCase,
+    ApproveSubscriptionPaymentUseCase,
+    UploadImageUseCase,
+
+    // Core Services & Auth Guards
     AuthService,
     JwtStrategy,
     JwtAuthGuard,
     ExchangeRateService,
     BcvCronService,
-    SystemSettingRepository,
-    ExchangeRateHistoryRepository,
-    SaasPlanManagementUseCase,
-    RegisterSubscriptionPaymentUseCase,
-    ApproveSubscriptionPaymentUseCase,
-    UploadImageUseCase,
+    StockSnapshotService,
     S3Service,
+    DatabaseMigrationService,
+
+    // Repositories
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
-    // In NestJS with TypeORM, we can inject repositories directly or wrap them
     {
       provide: 'IUserRepository',
       useClass: UserRepository,
     },
+    UserRepository,
     TenantRepository,
     ProductRepository,
     StockMoveRepository,
-    CreateStockAdjustmentUseCase,
     PasswordResetTokenRepository,
     RefreshTokenRepository,
     PurchaseInvoiceRepository,
@@ -269,134 +307,21 @@ import { S3Service } from './infrastructure/storage/s3-service';
     SalesFiscalNoteRepository,
     PurchaseFiscalNoteRepository,
     RoleRepository,
-    CreateRoleUseCase,
-    ListRolesUseCase,
-    CreateUserUseCase,
-    ListUsersUseCase,
-    UpdateUserUseCase,
     AccountReceivablePayableRepository,
     AccountReceivableRepository,
     AccountPayableRepository,
-    CreateAccountUseCase,
-    RegisterPaymentUseCase,
-    BulkImportAccountsUseCase,
-    StockSnapshotService,
     StockSnapshotRepository,
-    CreateCommercialDocumentUseCase,
-    ConvertCommercialDocumentUseCase,
     CommercialDocumentRepository,
-    CreatePurchaseOrderUseCase,
-    CreatePurchaseReceptionUseCase,
-    CancelAndReplacePurchaseOrderUseCase,
-    BulkUpdatePricesUseCase,
+    SystemSettingRepository,
+    ExchangeRateHistoryRepository,
   ],
 })
 export class AppModule implements OnModuleInit {
   constructor(
-    private readonly dataSource: DataSource,
-    private readonly authService: AuthService,
-  ) { }
+    private readonly databaseMigrationService: DatabaseMigrationService,
+  ) {}
 
   async onModuleInit() {
-    try {
-      // 1. Ensure migrations lock table exists for atomic execution tracking
-      await this.dataSource.query(`
-        CREATE TABLE IF NOT EXISTS schema_migrations_lock (
-          filename VARCHAR(255) PRIMARY KEY,
-          executed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        );
-      `);
-
-      const candidates = [
-        path.join(process.cwd(), 'src', 'infrastructure', 'persistence', 'typeorm', 'migrations'),
-        path.join(process.cwd(), 'dist', 'src', 'infrastructure', 'persistence', 'typeorm', 'migrations'),
-        path.join(process.cwd(), 'dist', 'infrastructure', 'persistence', 'typeorm', 'migrations'),
-      ];
-
-      const migrationsDir = candidates.find(dir => fs.existsSync(dir));
-
-      if (migrationsDir) {
-        // Fetch list of already executed migrations
-        const executedRows: { filename: string }[] = await this.dataSource.query(
-          `SELECT filename FROM schema_migrations_lock;`
-        );
-        const executedSet = new Set(executedRows.map(r => r.filename));
-
-        const files = fs.readdirSync(migrationsDir)
-          .filter(f => f.endsWith('.sql'))
-          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-
-        for (const file of files) {
-          // If already executed in this database, skip completely (Zero-Downtime / Zero-Mutation)
-          if (executedSet.has(file)) {
-            continue;
-          }
-
-          const filePath = path.join(migrationsDir, file);
-          const sql = fs.readFileSync(filePath, 'utf8');
-          if (sql && sql.trim().length > 0) {
-            try {
-              await this.dataSource.query(sql);
-              await this.dataSource.query(
-                `INSERT INTO schema_migrations_lock (filename) VALUES ($1) ON CONFLICT (filename) DO NOTHING;`,
-                [file]
-              );
-              console.log(`🔒 Migration [${file}] applied and locked successfully.`);
-            } catch (err) {
-              console.warn(`Notice executing migration [${file}]:`, err);
-            }
-          }
-        }
-      }
-
-      // 2. Ensure system default tenant exists for SuperAdmin (Additive-only)
-      const tenantRepository = this.dataSource.getRepository(Tenant);
-      const defaultTenantId = BACKEND_SYSTEM_CONSTANTS.DEFAULT_SYSTEM_TENANT_ID;
-      const existingTenant = await tenantRepository.findOne({ where: { id: defaultTenantId } });
-      
-      if (!existingTenant) {
-        const systemTenant = new Tenant({
-          id: defaultTenantId,
-          company_name: 'ArivSoft System Administration',
-          tax_id: 'J-00000000-0',
-          plan_type: 'ENTERPRISE',
-          trial_expires_at: new Date('2099-12-31'),
-          is_active: true,
-          plan_is_active: true,
-        });
-        await tenantRepository.save(systemTenant);
-      }
-
-      // 3. Ensure configured SuperAdmin user exists ONLY if missing (Never mutate existing passwords)
-      const targetSuperAdminEmail = BACKEND_SYSTEM_CONSTANTS.SUPERADMIN_EMAIL.toLowerCase().trim();
-      const userRepository = this.dataSource.getRepository(User);
-      
-      const existingSuperAdmin = await userRepository.findOne({
-        where: [
-          { email: targetSuperAdminEmail },
-          { role: UserRole.SUPER_ADMIN }
-        ]
-      });
-
-      if (!existingSuperAdmin) {
-        const rawPassword = BACKEND_SYSTEM_CONSTANTS.DEFAULT_PASSWORD_ONBOARDING;
-        const freshHash = await this.authService.hashPassword(rawPassword);
-        const newSuperAdmin = new User({
-          id: 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a99',
-          tenant_id: defaultTenantId,
-          full_name: 'Super Admin',
-          email: targetSuperAdminEmail,
-          password_hash: freshHash,
-          role: UserRole.SUPER_ADMIN,
-          is_active: true,
-          failed_login_attempts: 0,
-          is_temporary_password: false,
-        });
-        await userRepository.save(newSuperAdmin);
-        console.log(`✅ SuperAdmin account created on first startup.`);
-      }
-    } catch (err) {
-      console.warn('Notice running database initialization on startup:', err);
-    }
+    await this.databaseMigrationService.runMigrationsAndBootstrap();
   }
 }
