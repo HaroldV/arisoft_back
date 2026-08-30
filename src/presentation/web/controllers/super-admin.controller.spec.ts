@@ -355,5 +355,89 @@ describe('SuperAdminController - SaaS Plans CRUD (Unit & Integration Tests)', ()
       expect(savedUserState.is_active).toBe(false); // Sincronizado con estado SUSPENDED
       expect(savedUserState.allowed_permissions).toEqual(['pos:create', 'sales:invoicing', 'inventory:create', 'banks:accounts', 'reports:view', 'payroll:manage', 'company:manage']);
     });
+
+    it('Debe modificar de forma atómica y segura el correo, nombre y clave personalizada del Propietario en la empresa existente', async () => {
+      const tenantId = 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22';
+      const existingTenant = {
+        id: tenantId,
+        company_name: 'Empresa Original',
+        tax_id: 'J-11111111-1',
+        plan_type: 'EMPRENDEDOR',
+        is_active: true,
+        trial_expires_at: new Date('2026-12-31'),
+        settings: {
+          subdomain: 'empresa-original',
+          owner_email: 'correo_anterior@empresa.com',
+          owner_name: 'Propietario Anterior',
+          enabled_modules: ['POS']
+        }
+      };
+
+      const existingOwnerUser = {
+        id: 'owner-user-999',
+        tenant_id: tenantId,
+        email: 'correo_anterior@empresa.com',
+        full_name: 'Propietario Anterior',
+        role: 'OWNER',
+        password_hash: 'old_hashed_password',
+        is_temporary_password: false,
+        is_active: true,
+        failed_login_attempts: 0
+      };
+
+      let tenantSaved: any = null;
+      let userSaved: any = null;
+
+      const mockTenantRepo = {
+        findOne: jest.fn().mockResolvedValue(existingTenant),
+        save: jest.fn().mockImplementation(async (t) => {
+          tenantSaved = { ...t };
+          return tenantSaved;
+        })
+      };
+
+      const mockUserRepo = {
+        findOne: jest.fn().mockImplementation(async (query) => {
+          // Si busca por email nuevo, retorna null (email disponible)
+          if (query.where?.email === 'nuevo_correo_owner@empresa.com') return null;
+          // Si busca por tenant_id o rol
+          if (query.where?.tenant_id === tenantId) return existingOwnerUser;
+          return null;
+        }),
+        save: jest.fn().mockImplementation(async (u) => {
+          userSaved = { ...u };
+          return userSaved;
+        })
+      };
+
+      mockDataSource.getRepository = jest.fn().mockImplementation((entity) => {
+        if (entity.name === 'Tenant') return mockTenantRepo;
+        if (entity.name === 'User') return mockUserRepo;
+        return mockPlanRepository;
+      });
+
+      mockAuthService.hashPassword = jest.fn().mockResolvedValue('hashed_NuevaClave2026!');
+
+      const editOwnerPayload = {
+        owner_name: 'Propietario Actualizado',
+        owner_email: 'nuevo_correo_owner@empresa.com',
+        owner_password: 'NuevaClave2026!'
+      };
+
+      const res = await controller.updateTenant(tenantId, editOwnerPayload);
+
+      expect(res.message).toBe('Tenant subscription updated successfully');
+      expect(mockAuthService.hashPassword).toHaveBeenCalledWith('NuevaClave2026!');
+
+      // Verificar que el Tenant actualizó settings del owner
+      expect(tenantSaved.settings.owner_email).toBe('nuevo_correo_owner@empresa.com');
+      expect(tenantSaved.settings.owner_name).toBe('Propietario Actualizado');
+
+      // Verificar que el User Owner fue actualizado en la BD
+      expect(userSaved.email).toBe('nuevo_correo_owner@empresa.com');
+      expect(userSaved.full_name).toBe('Propietario Actualizado');
+      expect(userSaved.password_hash).toBe('hashed_NuevaClave2026!');
+      expect(userSaved.is_temporary_password).toBe(true);
+    });
   });
 });

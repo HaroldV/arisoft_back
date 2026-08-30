@@ -94,9 +94,14 @@ export class SuperAdminController {
       const productCount = await this.dataSource.getRepository(Product).count({
         where: { tenant_id: tenant.id }
       });
-      const ownerUser = await this.dataSource.getRepository(User).findOne({
+      let ownerUser = await this.dataSource.getRepository(User).findOne({
         where: { tenant_id: tenant.id, role: UserRole.OWNER }
       });
+      if (!ownerUser) {
+        ownerUser = await this.dataSource.getRepository(User).findOne({
+          where: { tenant_id: tenant.id }
+        });
+      }
 
       const planCode = (tenant.plan_type as SaasPlanEnum) || SaasPlanEnum.COMERCIAL_PRO;
       const planLimits = BACKEND_SYSTEM_CONSTANTS.PLAN_LIMITS[planCode] || BACKEND_SYSTEM_CONSTANTS.PLAN_LIMITS.COMERCIAL_PRO;
@@ -312,6 +317,8 @@ export class SuperAdminController {
       enabled_permissions
     } = body;
 
+    const previousOwnerEmail = tenant.settings?.owner_email ? String(tenant.settings.owner_email).toLowerCase().trim() : undefined;
+
     tenant.company_name = name || tenant.company_name;
     tenant.tax_id = tax_id ? tax_id.toUpperCase().trim() : tenant.tax_id;
     tenant.plan_type = plan_name || tenant.plan_type;
@@ -343,22 +350,32 @@ export class SuperAdminController {
     await this.dataSource.getRepository(Tenant).save(tenant);
 
     let defaultPasswordReset: string | undefined = undefined;
-    const targetEmail = owner_email ? owner_email.toLowerCase().trim() : tenant.settings?.owner_email?.toLowerCase().trim();
+    const cleanOwnerEmail = owner_email ? owner_email.toLowerCase().trim() : undefined;
+    const cleanOwnerName = owner_name ? owner_name.trim() : undefined;
 
-    let ownerUser: User | null = null;
+    // Check if new email is already taken by another user in a different tenant
+    if (cleanOwnerEmail) {
+      const existingUserWithEmail = await this.dataSource.getRepository(User).findOne({
+        where: { email: cleanOwnerEmail }
+      });
+      if (existingUserWithEmail && existingUserWithEmail.tenant_id !== tenant.id) {
+        throw new ConflictException(`El correo electrónico "${cleanOwnerEmail}" ya pertenece a otro usuario en la plataforma.`);
+      }
+    }
 
-    if (targetEmail) {
+    // 1. Try finding owner user by tenant_id and role OWNER
+    let ownerUser = await this.dataSource.getRepository(User).findOne({
+      where: { tenant_id: tenant.id, role: UserRole.OWNER }
+    });
+
+    // 2. Try finding user by previous owner email
+    if (!ownerUser && previousOwnerEmail) {
       ownerUser = await this.dataSource.getRepository(User).findOne({
-        where: { email: targetEmail }
+        where: { email: previousOwnerEmail }
       });
     }
 
-    if (!ownerUser) {
-      ownerUser = await this.dataSource.getRepository(User).findOne({
-        where: { tenant_id: tenant.id, role: UserRole.OWNER }
-      });
-    }
-
+    // 3. Fallback to any user belonging to this tenant
     if (!ownerUser) {
       ownerUser = await this.dataSource.getRepository(User).findOne({
         where: { tenant_id: tenant.id }
@@ -366,12 +383,15 @@ export class SuperAdminController {
     }
 
     if (ownerUser) {
-      if (owner_email) ownerUser.email = owner_email.toLowerCase().trim();
-      if (owner_name) ownerUser.full_name = owner_name;
+      if (cleanOwnerEmail) ownerUser.email = cleanOwnerEmail;
+      if (cleanOwnerName) ownerUser.full_name = cleanOwnerName;
       if (enabled_permissions && Array.isArray(enabled_permissions)) {
         ownerUser.allowed_permissions = enabled_permissions;
       }
-      if (body.reset_password === true) {
+      if (body.owner_password && typeof body.owner_password === 'string' && body.owner_password.trim().length >= 6) {
+        ownerUser.password_hash = await this.authService.hashPassword(body.owner_password.trim());
+        ownerUser.is_temporary_password = true;
+      } else if (body.reset_password === true) {
         defaultPasswordReset = BACKEND_SYSTEM_CONSTANTS.DEFAULT_PASSWORD_ONBOARDING;
         ownerUser.password_hash = await this.authService.hashPassword(defaultPasswordReset);
         ownerUser.is_temporary_password = true;
@@ -384,6 +404,25 @@ export class SuperAdminController {
         ownerUser.failed_login_attempts = 0;
       }
       await this.dataSource.getRepository(User).save(ownerUser);
+    } else if (cleanOwnerEmail) {
+      // Si el tenant no tenía usuario creado, crearlo de inmediato
+      const newPassword = (body.owner_password && body.owner_password.trim().length >= 6)
+        ? body.owner_password.trim()
+        : BACKEND_SYSTEM_CONSTANTS.DEFAULT_PASSWORD_ONBOARDING;
+      defaultPasswordReset = newPassword;
+      const passwordHash = await this.authService.hashPassword(newPassword);
+
+      const newOwner = new User({
+        tenant_id: tenant.id,
+        full_name: cleanOwnerName || BACKEND_SYSTEM_CONSTANTS.DEFAULT_OWNER_NAME,
+        email: cleanOwnerEmail,
+        password_hash: passwordHash,
+        role: UserRole.OWNER,
+        is_active: status !== TenantStatusEnum.SUSPENDED,
+        is_temporary_password: true,
+        allowed_permissions: tenant.settings?.enabled_permissions || []
+      });
+      await this.dataSource.getRepository(User).save(newOwner);
     }
 
     return { 
