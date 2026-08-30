@@ -299,6 +299,14 @@ export class AppModule implements OnModuleInit {
 
   async onModuleInit() {
     try {
+      // 1. Ensure migrations lock table exists for atomic execution tracking
+      await this.dataSource.query(`
+        CREATE TABLE IF NOT EXISTS schema_migrations_lock (
+          filename VARCHAR(255) PRIMARY KEY,
+          executed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
       const candidates = [
         path.join(process.cwd(), 'src', 'infrastructure', 'persistence', 'typeorm', 'migrations'),
         path.join(process.cwd(), 'dist', 'src', 'infrastructure', 'persistence', 'typeorm', 'migrations'),
@@ -308,24 +316,40 @@ export class AppModule implements OnModuleInit {
       const migrationsDir = candidates.find(dir => fs.existsSync(dir));
 
       if (migrationsDir) {
+        // Fetch list of already executed migrations
+        const executedRows: { filename: string }[] = await this.dataSource.query(
+          `SELECT filename FROM schema_migrations_lock;`
+        );
+        const executedSet = new Set(executedRows.map(r => r.filename));
+
         const files = fs.readdirSync(migrationsDir)
           .filter(f => f.endsWith('.sql'))
           .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
         for (const file of files) {
+          // If already executed in this database, skip completely (Zero-Downtime / Zero-Mutation)
+          if (executedSet.has(file)) {
+            continue;
+          }
+
           const filePath = path.join(migrationsDir, file);
           const sql = fs.readFileSync(filePath, 'utf8');
           if (sql && sql.trim().length > 0) {
             try {
               await this.dataSource.query(sql);
+              await this.dataSource.query(
+                `INSERT INTO schema_migrations_lock (filename) VALUES ($1) ON CONFLICT (filename) DO NOTHING;`,
+                [file]
+              );
+              console.log(`🔒 Migration [${file}] applied and locked successfully.`);
             } catch (err) {
-              // Ignore table already exists or column already exists notices
+              console.warn(`Notice executing migration [${file}]:`, err);
             }
           }
         }
       }
 
-      // Ensure system default tenant exists for SuperAdmin
+      // 2. Ensure system default tenant exists for SuperAdmin (Additive-only)
       const tenantRepository = this.dataSource.getRepository(Tenant);
       const defaultTenantId = BACKEND_SYSTEM_CONSTANTS.DEFAULT_SYSTEM_TENANT_ID;
       const existingTenant = await tenantRepository.findOne({ where: { id: defaultTenantId } });
@@ -343,29 +367,20 @@ export class AppModule implements OnModuleInit {
         await tenantRepository.save(systemTenant);
       }
 
-      // Ensure configured SuperAdmin user exists, is active, unlocked and has correct password on startup via TypeORM Repository
+      // 3. Ensure configured SuperAdmin user exists ONLY if missing (Never mutate existing passwords)
       const targetSuperAdminEmail = BACKEND_SYSTEM_CONSTANTS.SUPERADMIN_EMAIL.toLowerCase().trim();
-      const rawPassword = BACKEND_SYSTEM_CONSTANTS.DEFAULT_PASSWORD_ONBOARDING;
-      const freshHash = await this.authService.hashPassword(rawPassword);
       const userRepository = this.dataSource.getRepository(User);
       
-      const adminUsers = await userRepository.find({
+      const existingSuperAdmin = await userRepository.findOne({
         where: [
           { email: targetSuperAdminEmail },
-          { role: 'SUPER_ADMIN' }
+          { role: UserRole.SUPER_ADMIN }
         ]
       });
 
-      if (adminUsers.length > 0) {
-        for (const adminUser of adminUsers) {
-          adminUser.email = targetSuperAdminEmail;
-          adminUser.password_hash = freshHash;
-          adminUser.is_active = true;
-          adminUser.failed_login_attempts = 0;
-          adminUser.is_temporary_password = false;
-          await userRepository.save(adminUser);
-        }
-      } else {
+      if (!existingSuperAdmin) {
+        const rawPassword = BACKEND_SYSTEM_CONSTANTS.DEFAULT_PASSWORD_ONBOARDING;
+        const freshHash = await this.authService.hashPassword(rawPassword);
         const newSuperAdmin = new User({
           id: 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a99',
           tenant_id: defaultTenantId,
@@ -378,11 +393,10 @@ export class AppModule implements OnModuleInit {
           is_temporary_password: false,
         });
         await userRepository.save(newSuperAdmin);
+        console.log(`✅ SuperAdmin account created on first startup.`);
       }
-
-      console.log(`✅ SuperAdmin account (${targetSuperAdminEmail}) explicitly reset, unlocked and active on startup.`);
     } catch (err) {
-      console.warn('Notice running SQL migrations or resetting password on startup:', err);
+      console.warn('Notice running database initialization on startup:', err);
     }
   }
 }
