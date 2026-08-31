@@ -14,6 +14,7 @@ import { ResetPasswordUseCase } from '../../../application/use-cases/auth/reset-
 import { ResetPasswordDto } from '../../../application/use-cases/auth/reset-password.dto';
 import { RefreshTokenUseCase } from '../../../application/use-cases/auth/refresh-token.use-case';
 import { LogoutUseCase } from '../../../application/use-cases/auth/logout.use-case';
+import { ExchangeRateService } from '../../../infrastructure/finance/exchange-rate.service';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -26,7 +27,15 @@ export class AuthController {
     private readonly refreshTokenUseCase: RefreshTokenUseCase,
     private readonly logoutUseCase: LogoutUseCase,
     private readonly changeInitialPasswordUseCase: ChangeInitialPasswordUseCase,
+    private readonly exchangeRateService: ExchangeRateService,
   ) {}
+
+  @Get('bcv/rate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get current master BCV rate (public / authenticated users)' })
+  async getBcvRate() {
+    return this.exchangeRateService.getCurrentMasterRate();
+  }
 
   @Get('health')
   @HttpCode(HttpStatus.OK)

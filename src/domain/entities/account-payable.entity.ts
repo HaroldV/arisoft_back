@@ -61,7 +61,7 @@ export class AccountPayable {
   @Column({ type: 'timestamp with time zone', nullable: true })
   invoice_registered_at?: Date;
 
-  @OneToMany(() => AccountPayment, (payment) => payment.account_id, { cascade: true })
+  @OneToMany(() => AccountPayment, (payment) => payment.payable_account, { cascade: true })
   payments?: AccountPayment[];
 
   @CreateDateColumn({ type: 'timestamp with time zone' })

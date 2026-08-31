@@ -25,6 +25,8 @@ describe('AccountsController (Unit & Integration Tests)', () => {
       calculateSummaryKPIs: jest.fn().mockResolvedValue({ totalDebtUSD: 200 }),
       save: jest.fn((item) => Promise.resolve({ id: 'p-new', ...item })),
       findByIdAndTenant: jest.fn().mockResolvedValue({ id: 'p-1', total_debt_usd: 200, total_paid_usd: 0, status: 'PENDING' }),
+      findAccountWithPayments: jest.fn().mockResolvedValue({ id: 'p-1', total_paid: 0, balance_due: 200, status: 'PENDING' }),
+      findById: jest.fn().mockResolvedValue({ id: 'p-1', total_paid: 0, balance_due: 200, status: 'PENDING' }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -100,6 +102,38 @@ describe('AccountsController (Unit & Integration Tests)', () => {
       const res = await controller.createPayable(validTenantId, dto as any, mockReq);
       expect(mockPayableRepo.save).toHaveBeenCalled();
       expect(res).toHaveProperty('id', 'p-new');
+    });
+  });
+
+  describe('POST /accounts/payables/:id/payments', () => {
+    it('should successfully register payment and formalize supplier invoice with user payload', async () => {
+      const mockPayable = {
+        id: 'f6937abf-a719-4e48-86eb-2c7135b845a0',
+        tenant_id: validTenantId,
+        provider_name: 'Distribuidora Polar C.A.',
+        total_paid: 0,
+        balance_due: 5.84,
+        status: 'PENDING',
+      };
+
+      mockPayableRepo.findAccountWithPayments.mockResolvedValue(mockPayable);
+      mockPayableRepo.save.mockImplementation((acc: any) => Promise.resolve(acc));
+
+      const payload = {
+        payment_method: 'CASH_USD',
+        amount: 5.84,
+        exchange_rate: 36.5,
+        reference_number: 'N/A',
+        supplier_invoice_number: 'FACT-0023',
+      };
+
+      const result = await controller.registerPayablePayment(validTenantId, 'f6937abf-a719-4e48-86eb-2c7135b845a0', payload, mockReq);
+
+      expect(result.total_paid).toBe(5.84);
+      expect(result.balance_due).toBe(0);
+      expect(result.status).toBe('PAID');
+      expect(result.supplier_invoice_number).toBe('FACT-0023');
+      expect(mockPayableRepo.save).toHaveBeenCalled();
     });
   });
 

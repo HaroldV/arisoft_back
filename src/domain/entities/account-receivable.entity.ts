@@ -55,7 +55,7 @@ export class AccountReceivable {
   @Column({ type: 'varchar', length: 255, nullable: true })
   created_by_user_name?: string;
 
-  @OneToMany(() => AccountPayment, (payment) => payment.account_id, { cascade: true })
+  @OneToMany(() => AccountPayment, (payment) => payment.receivable_account, { cascade: true })
   payments?: AccountPayment[];
 
   @CreateDateColumn({ type: 'timestamp with time zone' })

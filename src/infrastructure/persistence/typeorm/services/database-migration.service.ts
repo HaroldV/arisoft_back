@@ -59,8 +59,13 @@ export class DatabaseMigrationService {
                 [file]
               );
               this.logger.log(`🔒 Migration [${file}] applied and locked.`);
-            } catch (err) {
-              this.logger.warn(`Notice executing migration [${file}]: ${err}`);
+            } catch (err: any) {
+              // Mark as locked if it already existed/was applied previously so it doesn't log every restart
+              await this.dataSource.query(
+                `INSERT INTO schema_migrations_lock (filename) VALUES ($1) ON CONFLICT (filename) DO NOTHING;`,
+                [file]
+              );
+              this.logger.debug(`Notice executing migration [${file}]: ${err.message || err}`);
             }
           }
         }

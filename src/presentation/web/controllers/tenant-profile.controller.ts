@@ -18,15 +18,16 @@ export class TenantProfileController {
 
   @Get()
   @ApiOperation({ summary: 'Get company profile details' })
-  @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier' })
+  @ApiHeader({ name: 'x-tenant-id', required: false, description: 'Tenant Identifier' })
   async getProfile(
-    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
     @Req() req: any,
   ) {
+    const tenantId = headerTenantId || req.user?.tenant_id || req.user?.tenantId;
     if (!tenantId || !isUUID(tenantId)) {
-      throw new BadRequestException('x-tenant-id must be a valid UUID');
+      throw new BadRequestException('Tenant ID must be a valid UUID');
     }
-    if (tenantId !== req.user.tenant_id) {
+    if (req.user?.tenant_id && tenantId !== req.user.tenant_id && req.user.role !== 'SUPER_ADMIN') {
       throw new ForbiddenException('Tenant ID does not match authenticated session');
     }
     return this.getCompanyProfileUseCase.execute(tenantId);

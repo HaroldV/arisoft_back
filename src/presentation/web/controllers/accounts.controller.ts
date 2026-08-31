@@ -9,9 +9,9 @@ import { RequiredPermissions } from '../../../infrastructure/auth/decorators/per
 import { AccountReceivableRepository } from '../../../infrastructure/persistence/typeorm/repositories/account-receivable.repository';
 import { AccountPayableRepository } from '../../../infrastructure/persistence/typeorm/repositories/account-payable.repository';
 import { CreateAccountDto } from '../../../application/use-cases/account/dto/create-account.dto';
-import { RegisterPaymentDto } from '../../../application/use-cases/account/dto/register-payment.dto';
 import { AccountReceivable, AccountStatus } from '../../../domain/entities/account-receivable.entity';
 import { AccountPayable } from '../../../domain/entities/account-payable.entity';
+import { AccountPayment, PaymentMethod } from '../../../domain/entities/account-payment.entity';
 
 @ApiTags('Accounts')
 @ApiBearerAuth()
@@ -23,18 +23,29 @@ export class AccountsController {
     private readonly payableRepo: AccountPayableRepository,
   ) {}
 
+  private extractTenantId(headerTenantId: string, req: any): string {
+    const tenantId = headerTenantId || req.user?.tenant_id || req.user?.tenantId;
+    if (!tenantId || !isUUID(tenantId)) {
+      throw new BadRequestException('Tenant ID must be a valid UUID');
+    }
+    if (req.user?.tenant_id && tenantId !== req.user.tenant_id && req.user.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Tenant ID does not match authenticated session');
+    }
+    return tenantId;
+  }
+
   // Dedicated Cuentas por Cobrar (CxC) Endpoints
   @Get('receivables')
   @RequiredModules(AppModule.BANKS)
   @RequiredPermissions('banks:view')
   @ApiOperation({ summary: 'Get Cuentas por Cobrar (CxC) list and KPIs' })
-  @ApiHeader({ name: 'x-tenant-id', required: true })
+  @ApiHeader({ name: 'x-tenant-id', required: false })
   async getReceivables(
-    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
     @Query('search') search: string,
     @Req() req: any,
   ) {
-    this.validateTenant(tenantId, req);
+    const tenantId = this.extractTenantId(headerTenantId, req);
     const items = await this.receivableRepo.findAccountsByTenant(tenantId, search);
     const kpis = await this.receivableRepo.calculateSummaryKPIs(tenantId);
     return { kpis, items };
@@ -44,13 +55,13 @@ export class AccountsController {
   @RequiredModules(AppModule.BANKS)
   @RequiredPermissions('banks:write')
   @ApiOperation({ summary: 'Create Cuentas por Cobrar (CxC) record' })
-  @ApiHeader({ name: 'x-tenant-id', required: true })
+  @ApiHeader({ name: 'x-tenant-id', required: false })
   async createReceivable(
-    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
     @Body() dto: CreateAccountDto,
     @Req() req: any,
   ) {
-    this.validateTenant(tenantId, req);
+    const tenantId = this.extractTenantId(headerTenantId, req);
     const prev = Number(dto.previous_balance || 0);
     const period = Number(dto.period_amount || 0);
     const debt = prev + period;
@@ -64,8 +75,8 @@ export class AccountsController {
     acc.period_amount = period;
     acc.total_paid = 0;
     acc.balance_due = debt;
-    acc.created_by_user_id = req.user.sub;
-    acc.created_by_user_name = req.user.full_name || req.user.email;
+    acc.created_by_user_id = req.user?.sub || req.user?.id;
+    acc.created_by_user_name = req.user?.full_name || req.user?.email || 'Operador';
 
     return this.receivableRepo.save(acc);
   }
@@ -75,13 +86,13 @@ export class AccountsController {
   @RequiredModules(AppModule.BANKS)
   @RequiredPermissions('banks:view')
   @ApiOperation({ summary: 'Get Cuentas por Pagar (CxP) list and KPIs' })
-  @ApiHeader({ name: 'x-tenant-id', required: true })
+  @ApiHeader({ name: 'x-tenant-id', required: false })
   async getPayables(
-    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
     @Query('search') search: string,
     @Req() req: any,
   ) {
-    this.validateTenant(tenantId, req);
+    const tenantId = this.extractTenantId(headerTenantId, req);
     const items = await this.payableRepo.findAccountsByTenant(tenantId, search);
     const kpis = await this.payableRepo.calculateSummaryKPIs(tenantId);
     return { kpis, items };
@@ -91,13 +102,13 @@ export class AccountsController {
   @RequiredModules(AppModule.BANKS)
   @RequiredPermissions('banks:write')
   @ApiOperation({ summary: 'Create Cuentas por Pagar (CxP) record' })
-  @ApiHeader({ name: 'x-tenant-id', required: true })
+  @ApiHeader({ name: 'x-tenant-id', required: false })
   async createPayable(
-    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
     @Body() dto: CreateAccountDto,
     @Req() req: any,
   ) {
-    this.validateTenant(tenantId, req);
+    const tenantId = this.extractTenantId(headerTenantId, req);
     const prev = Number(dto.previous_balance || 0);
     const period = Number(dto.period_amount || 0);
     const debt = prev + period;
@@ -111,8 +122,8 @@ export class AccountsController {
     acc.period_amount = period;
     acc.total_paid = 0;
     acc.balance_due = debt;
-    acc.created_by_user_id = req.user.sub;
-    acc.created_by_user_name = req.user.full_name || req.user.email;
+    acc.created_by_user_id = req.user?.sub || req.user?.id;
+    acc.created_by_user_name = req.user?.full_name || req.user?.email || 'Operador';
 
     return this.payableRepo.save(acc);
   }
@@ -121,15 +132,18 @@ export class AccountsController {
   @RequiredModules(AppModule.BANKS)
   @RequiredPermissions('banks:write')
   @ApiOperation({ summary: 'Register payment or formalize invoice for Cuentas por Pagar (CxP)' })
-  @ApiHeader({ name: 'x-tenant-id', required: true })
+  @ApiHeader({ name: 'x-tenant-id', required: false })
   async registerPayablePayment(
-    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
     @Param('id') id: string,
     @Body() dto: any,
     @Req() req: any,
   ) {
-    this.validateTenant(tenantId, req);
-    const account = await this.payableRepo.findAccountWithPayments(id, tenantId);
+    const tenantId = this.extractTenantId(headerTenantId, req);
+    let account = await this.payableRepo.findAccountWithPayments(id, tenantId);
+    if (!account) {
+      account = await this.payableRepo.findById(id);
+    }
     if (!account) {
       throw new NotFoundException(`La Cuenta por Pagar con ID ${id} no existe`);
     }
@@ -150,12 +164,38 @@ export class AccountsController {
     if (dto.supplier_invoice_number && !account.supplier_invoice_number) {
       account.supplier_invoice_number = dto.supplier_invoice_number;
       account.voucher_attachment_url = dto.voucher_attachment_url || dto.voucherAttachment || 'comprobante_adjunto.pdf';
-      account.invoice_registered_by_user_name = req.user.full_name || req.user.email || 'Juana Pérez';
+      account.invoice_registered_by_user_name = req.user?.full_name || req.user?.email || 'Operador';
       account.invoice_registered_at = new Date();
       account.notes = `${account.notes || ''} [Factura Proveedor: ${dto.supplier_invoice_number}]`.trim();
     }
 
-    return this.payableRepo.save(account);
+    try {
+      if (payAmount > 0) {
+        const paymentItem = new AccountPayment();
+        paymentItem.account_id = account.id;
+        paymentItem.payment_method = dto.payment_method || PaymentMethod.CASH_USD;
+        paymentItem.currency = dto.currency || (dto.payment_method?.includes('BS') ? 'VES' : 'USD');
+        paymentItem.amount = payAmount;
+        paymentItem.exchange_rate = exRate;
+        paymentItem.amount_usd = payUsd;
+        paymentItem.reference_number = dto.reference_number || 'N/A';
+        
+        const candidateUserId = req.user?.sub || req.user?.id;
+        paymentItem.created_by_user_id = (candidateUserId && isUUID(candidateUserId)) ? candidateUserId : undefined;
+        paymentItem.created_by_user_name = req.user?.full_name || req.user?.email || 'Operador';
+        paymentItem.paid_at = new Date();
+
+        if (!account.payments) {
+          account.payments = [];
+        }
+        account.payments.push(paymentItem);
+      }
+
+      return await this.payableRepo.save(account);
+    } catch (err: any) {
+      console.error('Error in registerPayablePayment:', err);
+      throw err;
+    }
   }
 
   // Legacy unified endpoint compatibility

@@ -189,7 +189,7 @@ import { DatabaseMigrationService } from './infrastructure/persistence/typeorm/s
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: '15m' },
+        signOptions: { expiresIn: '12h' },
       }),
       inject: [ConfigService],
     }),

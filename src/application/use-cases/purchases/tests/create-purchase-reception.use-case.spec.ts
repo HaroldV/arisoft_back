@@ -11,6 +11,11 @@ describe('CreatePurchaseReceptionUseCase', () => {
   let mockCostHistoryRepo: any;
   let mockSerialRepo: any;
   let mockPayableRepo: any;
+  let mockTenantRepo: any;
+  let mockUserRepo: any;
+  let mockWarehouseRepo: any;
+  let mockDataSource: any;
+  let mockQueryRunner: any;
 
   beforeEach(() => {
     mockReceptionRepo = {
@@ -40,6 +45,7 @@ describe('CreatePurchaseReceptionUseCase', () => {
         cost_usd: 50.00,
       }),
       save: jest.fn().mockImplementation(prod => prod),
+      create: jest.fn().mockImplementation(prod => prod),
     };
 
     mockStockMoveRepo = {
@@ -58,6 +64,60 @@ describe('CreatePurchaseReceptionUseCase', () => {
       save: jest.fn().mockImplementation(p => p),
     };
 
+    mockTenantRepo = {
+      findOne: jest.fn().mockResolvedValue({ id: '00000000-0000-0000-0000-000000000001' }),
+    };
+
+    mockUserRepo = {
+      findOne: jest.fn().mockResolvedValue({ id: '00000000-0000-0000-0000-000000000002' }),
+    };
+
+    mockWarehouseRepo = {
+      findOne: jest.fn().mockResolvedValue({ id: '00000000-0000-0000-0000-000000000003' }),
+    };
+
+    mockQueryRunner = {
+      connect: jest.fn(),
+      startTransaction: jest.fn(),
+      commitTransaction: jest.fn(),
+      rollbackTransaction: jest.fn(),
+      release: jest.fn(),
+      manager: {
+        findOne: jest.fn().mockImplementation((entityClass, criteria) => {
+          if (entityClass?.name === 'User' || entityClass === 'User') {
+            return { id: '00000000-0000-0000-0000-000000000002' };
+          }
+          if (entityClass?.name === 'Tenant' || entityClass === 'Tenant') {
+            return { id: '00000000-0000-0000-0000-000000000001' };
+          }
+          if (entityClass?.name === 'WarehouseLocation' || entityClass === 'WarehouseLocation') {
+            return { id: '00000000-0000-0000-0000-000000000003' };
+          }
+          if (entityClass?.name === 'Product' || entityClass === 'Product') {
+            return {
+              id: 'prod-1',
+              tenant_id: 'tenant-1',
+              name: 'Producto Test',
+              current_stock: 10,
+              cost_usd: 50.00,
+            };
+          }
+          return mockOrderRepo.findOne();
+        }),
+        find: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
+        create: jest.fn().mockImplementation((entityClass, dto) => dto),
+        save: jest.fn().mockImplementation((entityClassOrDto, maybeDto) => {
+          const payload = maybeDto !== undefined ? maybeDto : entityClassOrDto;
+          return Array.isArray(payload) ? payload : { id: 'rec-uuid-1', ...payload };
+        }),
+      },
+    };
+
+    mockDataSource = {
+      createQueryRunner: jest.fn().mockReturnValue(mockQueryRunner),
+    };
+
     useCase = new CreatePurchaseReceptionUseCase(
       mockReceptionRepo,
       mockOrderRepo,
@@ -67,6 +127,10 @@ describe('CreatePurchaseReceptionUseCase', () => {
       mockCostHistoryRepo,
       mockSerialRepo,
       mockPayableRepo,
+      mockTenantRepo,
+      mockUserRepo,
+      mockWarehouseRepo,
+      mockDataSource,
     );
   });
 
@@ -131,11 +195,13 @@ describe('CreatePurchaseReceptionUseCase', () => {
     expect(result.supplier_rif).toBe('J-00000001-1');
     expect(result.warehouse_name).toBe('Almacén Principal');
     expect(mockOrder.status).toBe('COMPLETED');
-    expect(mockProductRepo.save).toHaveBeenCalledWith(
+    expect(mockQueryRunner.manager.save).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({
         current_stock: 20, // 10 original + 10 received
       })
     );
+    expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
   });
 
   it('should update order status to PARTIALLY_RECEIVED on partial shipment', async () => {
@@ -220,5 +286,108 @@ describe('CreatePurchaseReceptionUseCase', () => {
     expect(res.order_id).toBe('75df10f7-a6ea-482b-9222-67381bc3ee9f');
     expect(res.ndr_number).toBe('44002382');
     expect(res.supplier_name).toBe('Nestlé Venezuela, S.A.');
+
+    // Verify AccountPayable (CxP) registration
+    expect(mockQueryRunner.manager.save).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        provider_name: 'Nestlé Venezuela, S.A.',
+        status: 'PENDING',
+        period_amount: expect.any(Number),
+        balance_due: expect.any(Number),
+      })
+    );
+    expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
+  });
+
+  it('should process exact user payload for Polar with landed freight fields successfully', async () => {
+    const mockPolarOrder = {
+      id: '06c4dff4-d056-4a81-83aa-11d3928714bf',
+      tenant_id: 'tenant-1',
+      supplier_id: '29b5ac63-d2ac-4c58-bc82-e61fc8475d42',
+      supplier_name: 'Distribuidora Polar C.A.',
+      supplier_rif: 'J-00041372-9',
+      payment_term: 'CONTADO',
+      currency: 'USD',
+      exchange_rate: 1.0,
+      is_national: true,
+      status: 'APPROVED',
+      items: [
+        { id: 'item-1', product_id: 'd6794828-797a-4392-b41f-7d3da4c88df3', quantity_ordered: 1, quantity_received: 0 },
+        { id: 'item-2', product_id: '769322d1-fdee-4368-b47b-7918abbf948b', quantity_ordered: 1, quantity_received: 0 },
+        { id: 'item-3', product_id: 'ef64bdb7-892e-41a2-a227-c083a5fec9b4', quantity_ordered: 1, quantity_received: 0 },
+      ],
+    };
+
+    mockOrderRepo.findOne.mockResolvedValue(mockPolarOrder);
+
+    const polarUserPayload = {
+      orderId: '06c4dff4-d056-4a81-83aa-11d3928714bf',
+      supplierId: '29b5ac63-d2ac-4c58-bc82-e61fc8475d42',
+      supplierName: 'Distribuidora Polar C.A.',
+      supplierRif: 'J-00041372-9',
+      warehouseName: 'Almacén Principal',
+      paymentTerm: 'CONTADO',
+      currency: 'USD',
+      isNational: true,
+      items: [
+        {
+          itemNumber: 1,
+          productId: 'd6794828-797a-4392-b41f-7d3da4c88df3',
+          model: '',
+          warehouseId: '5f0bee8d-5dea-48f8-a1c0-7f135e370037',
+          quantityReceived: 1,
+          quantityPending: 1,
+          unitCostUsd: 1.2321,
+          discountPercentage: 0,
+          discountAmount: 0,
+          taxRate: 16,
+          additionalTaxAmount: 0,
+          lineComment: '',
+          serials: [],
+          landedFreightUnit: 0,
+          landedCostUsd: 1.2321,
+        },
+        {
+          itemNumber: 2,
+          productId: '769322d1-fdee-4368-b47b-7918abbf948b',
+          model: '',
+          warehouseId: '5f0bee8d-5dea-48f8-a1c0-7f135e370037',
+          quantityReceived: 1,
+          quantityPending: 1,
+          unitCostUsd: 1.5,
+          discountPercentage: 0,
+          discountAmount: 0,
+          taxRate: 16,
+          additionalTaxAmount: 0,
+          lineComment: 'Salsa de Tomate Ketchup Pampero 397g',
+          serials: [],
+          landedFreightUnit: 0,
+          landedCostUsd: 1.5,
+        },
+        {
+          itemNumber: 3,
+          productId: 'ef64bdb7-892e-41a2-a227-c083a5fec9b4',
+          model: '',
+          warehouseId: '5f0bee8d-5dea-48f8-a1c0-7f135e370037',
+          quantityReceived: 1,
+          quantityPending: 1,
+          unitCostUsd: 2.3,
+          discountPercentage: 0,
+          discountAmount: 0,
+          taxRate: 16,
+          additionalTaxAmount: 0,
+          lineComment: 'Mayonesa Kraft Real 445g',
+          serials: [],
+          landedFreightUnit: 0,
+          landedCostUsd: 2.3,
+        },
+      ],
+    };
+
+    const res = await useCase.execute('tenant-1', 'user-1', 'Operador', polarUserPayload);
+    expect(res.order_id).toBe('06c4dff4-d056-4a81-83aa-11d3928714bf');
+    expect(res.supplier_name).toBe('Distribuidora Polar C.A.');
+    expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
   });
 });
