@@ -48,6 +48,18 @@ jobs:
           fi
           echo "✅ Migration Security Guard Passed (0 hardcoded credentials or DML queries)."
 
+      - name: "Quality Gate 1.2: Magic Strings Guard (No Hardcoded Role Comparisons in Backend)"
+        run: |
+          echo "🔍 Checking for hardcoded UserRole string comparisons (Rule 6.1)..."
+          FORBIDDEN_ROLES=$(grep -rnE --include="*.ts" "role\s*(===|!==)\s*['\"](SUPER_ADMIN|OWNER|MANAGER|CASHIER)['\"]" src/application src/presentation || true)
+          if [ -n "$FORBIDDEN_ROLES" ]; then
+            echo "❌ Quality Gate Failed: Found hardcoded role string comparisons:"
+            echo "$FORBIDDEN_ROLES"
+            echo "👉 Rule 6.1 of AGENTS.md strictly prohibits magic strings. Use UserRole enum (e.g. UserRole.SUPER_ADMIN, UserRole.OWNER)."
+            exit 1
+          fi
+          echo "✅ Magic Strings Role Guard Passed (0 hardcoded role comparisons)."
+
       - name: "Quality Gate 2: Strict Typecheck"
         run: npm run lint
 

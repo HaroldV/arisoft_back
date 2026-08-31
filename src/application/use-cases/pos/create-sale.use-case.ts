@@ -11,6 +11,7 @@ import { TenantRepository } from '../../../infrastructure/persistence/typeorm/re
 import { TenantFiscalRangeRepository } from '../../../infrastructure/persistence/typeorm/repositories/tenant-fiscal-range.repository';
 import { CashShiftRepository } from '../../../infrastructure/persistence/typeorm/repositories/cash-shift.repository';
 import { FiscalDocType } from '../../../domain/entities/tenant-fiscal-range.entity';
+import { UserRole } from '../../../domain/entities/user.entity';
 import { CreateSaleDto } from './create-sale.dto';
 
 @Injectable()
@@ -25,16 +26,16 @@ export class CreateSaleUseCase {
     private readonly dataSource: DataSource,
   ) {}
 
-  async execute(tenantId: string, user: { id: string; role: string; permissions: string[] }, dto: CreateSaleDto) {
+  async execute(tenantId: string, user: { id: string; role?: string; permissions?: string[] }, dto: CreateSaleDto) {
     // 0. Validate active cashier shift (only enforced for CASHIER role)
     const activeShift = await this.cashShiftRepo.findActiveShift(user.id);
-    if (user.role === 'CASHIER' && !activeShift) {
+    if (user.role === UserRole.CASHIER && !activeShift) {
       throw new BadRequestException('Debes tener un turno de caja activo abierto para realizar una venta.');
     }
 
     // Validate discount authorization
     if (dto.discountPercent && dto.discountPercent > 0) {
-      if (user.role !== 'OWNER' && !user.permissions.includes('pos:discount')) {
+      if (user.role !== UserRole.OWNER && !user.permissions?.includes('pos:discount')) {
         throw new BadRequestException('No tienes permiso para aplicar descuentos en las ventas');
       }
     }

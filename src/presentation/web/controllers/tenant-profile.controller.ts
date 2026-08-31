@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../../../infrastructure/auth/guards/jwt-auth.guard
 import { GetCompanyProfileUseCase } from '../../../application/use-cases/tenant/get-company-profile.use-case';
 import { UpdateCompanyProfileUseCase } from '../../../application/use-cases/tenant/update-company-profile.use-case';
 import { UpdateCompanyProfileDto } from '../../../application/use-cases/tenant/dto/update-company-profile.dto';
+import { UserRole } from '../../../domain/entities/user.entity';
 
 @ApiTags('Tenant Profile')
 @ApiBearerAuth()
@@ -27,7 +28,7 @@ export class TenantProfileController {
     if (!tenantId || !isUUID(tenantId)) {
       throw new BadRequestException('Tenant ID must be a valid UUID');
     }
-    if (req.user?.tenant_id && tenantId !== req.user.tenant_id && req.user.role !== 'SUPER_ADMIN') {
+    if (req.user?.tenant_id && tenantId !== req.user.tenant_id && req.user.role !== UserRole.SUPER_ADMIN) {
       throw new ForbiddenException('Tenant ID does not match authenticated session');
     }
     return this.getCompanyProfileUseCase.execute(tenantId);
@@ -49,7 +50,7 @@ export class TenantProfileController {
       throw new ForbiddenException('Tenant ID does not match authenticated session');
     }
     const role = req.user.role;
-    if (role !== 'OWNER' && role !== 'MANAGER') {
+    if (role !== UserRole.OWNER && role !== UserRole.MANAGER) {
       throw new ForbiddenException('Only owners and managers are allowed to configure the company profile');
     }
     return this.updateCompanyProfileUseCase.execute(tenantId, role, dto);

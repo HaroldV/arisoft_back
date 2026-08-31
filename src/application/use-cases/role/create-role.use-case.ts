@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { RoleRepository } from '../../../infrastructure/persistence/typeorm/repositories/role.repository';
 import { Role } from '../../../domain/entities/role.entity';
+import { UserRole } from '../../../domain/entities/user.entity';
 import { CreateRoleDto } from './dto/create-role.dto';
 
 @Injectable()
@@ -18,7 +19,7 @@ export class CreateRoleUseCase {
     }
 
     // Validate that the creator is not assigning permissions they themselves do not possess
-    if (creator.role !== 'OWNER') {
+    if (creator.role !== UserRole.OWNER) {
       const creatorPermissionsSet = new Set(creator.permissions || []);
       const missing = dto.allowed_permissions.filter(p => !creatorPermissionsSet.has(p));
       if (missing.length > 0) {

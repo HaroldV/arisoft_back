@@ -13,6 +13,7 @@ import { CloseShiftDto } from '../../../application/use-cases/pos/dto/close-shif
 import { GetActiveShiftUseCase } from '../../../application/use-cases/pos/get-active-shift.use-case';
 import { ApproveShiftUseCase } from '../../../application/use-cases/pos/approve-shift.use-case';
 import { CashShiftRepository } from '../../../infrastructure/persistence/typeorm/repositories/cash-shift.repository';
+import { UserRole } from '../../../domain/entities/user.entity';
 
 @ApiTags('CashShifts')
 @ApiBearerAuth()
@@ -88,7 +89,7 @@ export class CashShiftsController {
     if (tenantId !== req.user.tenant_id) {
       throw new ForbiddenException('Tenant ID does not match authenticated session');
     }
-    if (req.user.role !== 'OWNER' && req.user.role !== 'MANAGER') {
+    if (req.user.role !== UserRole.OWNER && req.user.role !== UserRole.MANAGER) {
       throw new ForbiddenException('Solo propietarios o supervisores pueden aprobar cierres de caja');
     }
     return this.approveShiftUseCase.execute(tenantId, req.user.id, shiftId);

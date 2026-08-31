@@ -12,6 +12,7 @@ import { CreateAccountDto } from '../../../application/use-cases/account/dto/cre
 import { AccountReceivable, AccountStatus } from '../../../domain/entities/account-receivable.entity';
 import { AccountPayable } from '../../../domain/entities/account-payable.entity';
 import { AccountPayment, PaymentMethod } from '../../../domain/entities/account-payment.entity';
+import { UserRole } from '../../../domain/entities/user.entity';
 
 @ApiTags('Accounts')
 @ApiBearerAuth()
@@ -28,7 +29,7 @@ export class AccountsController {
     if (!tenantId || !isUUID(tenantId)) {
       throw new BadRequestException('Tenant ID must be a valid UUID');
     }
-    if (req.user?.tenant_id && tenantId !== req.user.tenant_id && req.user.role !== 'SUPER_ADMIN') {
+    if (req.user?.tenant_id && tenantId !== req.user.tenant_id && req.user.role !== UserRole.SUPER_ADMIN) {
       throw new ForbiddenException('Tenant ID does not match authenticated session');
     }
     return tenantId;
