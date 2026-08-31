@@ -15,14 +15,14 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js Environment
+      - name: "Setup Node.js Environment"
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
-      - name: Install Dependencies
-        run: npm ci
+      - name: "Install Dependencies"
+        run: npm install
 
       - name: "Quality Gate 1: Strict Architecture Guard (No Raw SQL / dataSource.query in App Code)"
         run: |
