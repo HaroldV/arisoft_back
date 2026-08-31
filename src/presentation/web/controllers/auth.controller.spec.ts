@@ -7,6 +7,7 @@ import { ResetPasswordUseCase } from '../../../application/use-cases/auth/reset-
 import { RefreshTokenUseCase } from '../../../application/use-cases/auth/refresh-token.use-case';
 import { LogoutUseCase } from '../../../application/use-cases/auth/logout.use-case';
 import { ChangeInitialPasswordUseCase } from '../../../application/use-cases/auth/change-initial-password.use-case';
+import { ExchangeRateService } from '../../../infrastructure/finance/exchange-rate.service';
 import { Request, Response } from 'express';
 
 describe('AuthController (Unit & Integration Tests)', () => {
@@ -42,6 +43,7 @@ describe('AuthController (Unit & Integration Tests)', () => {
         { provide: RefreshTokenUseCase, useValue: mockRefreshTokenUseCase },
         { provide: LogoutUseCase, useValue: mockLogoutUseCase },
         { provide: ChangeInitialPasswordUseCase, useValue: { execute: jest.fn().mockResolvedValue({ success: true }) } },
+        { provide: ExchangeRateService, useValue: { getCurrentMasterRate: jest.fn().mockResolvedValue({ rate: 36.50, USD: { rate: 36.50 }, EUR: { rate: 39.50 } }) } },
       ],
     }).compile();
 

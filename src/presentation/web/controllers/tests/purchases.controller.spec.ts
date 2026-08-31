@@ -163,4 +163,66 @@ describe('PurchasesController E2E / Integration Suite', () => {
       expect(res).toEqual({ id: 'order-123' });
     });
   });
+
+  describe('POST /purchases/receptions - Reception & CxP Integration Flow', () => {
+    it('should successfully execute createReception and generate CxP with user context', async () => {
+      const mockReq = {
+        user: {
+          tenant_id: 'tenant-uuid-1',
+          userId: 'user-uuid-1',
+          full_name: 'Test Operator',
+        },
+      };
+
+      const receptionDto = {
+        orderId: '4b70f2d3-9a7d-4fb2-854b-121fd778122a',
+        supplierId: 'c1727b47-3152-440e-8ab2-2d254af1e816',
+        supplierName: 'Distribuidor HV',
+        supplierRif: 'J-20343232723',
+        ndrNumber: '34324234',
+        warehouseName: 'Almacén Principal',
+        paymentTerm: 'CONTADO',
+        currency: 'USD',
+        isNational: true,
+        items: [
+          {
+            itemNumber: 1,
+            productId: 'd6794828-797a-4392-b41f-7d3da4c88df3',
+            model: '',
+            warehouseId: '5f0bee8d-5dea-48f8-a1c0-7f135e370037',
+            quantityReceived: 1,
+            quantityPending: 1,
+            unitCostUsd: 1.2321,
+            discountPercentage: 0,
+            discountAmount: 0,
+            taxRate: 16,
+            additionalTaxAmount: 0,
+            lineComment: '',
+            serials: [],
+          },
+        ],
+      };
+
+      const expectedResponse = {
+        id: 'rec-uuid-100',
+        reception_number: 'REC-0000000001',
+        order_id: receptionDto.orderId,
+        supplier_name: receptionDto.supplierName,
+        status: 'RECEIVED',
+        items: receptionDto.items,
+      };
+
+      createReceptionUseCase.execute.mockResolvedValue(expectedResponse);
+
+      const result = await controller.createReception(mockReq, receptionDto as any);
+
+      expect(createReceptionUseCase.execute).toHaveBeenCalledWith(
+        'tenant-uuid-1',
+        'user-uuid-1',
+        'Test Operator',
+        receptionDto,
+      );
+      expect(result).toEqual(expectedResponse);
+    });
+  });
 });

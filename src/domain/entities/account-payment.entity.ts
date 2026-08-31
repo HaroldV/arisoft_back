@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 
 export enum PaymentMethod {
   CASH_BS = 'CASH_BS',
@@ -14,6 +14,14 @@ export class AccountPayment {
 
   @Column({ type: 'uuid' })
   account_id: string;
+
+  @ManyToOne('AccountPayable', (account: any) => account.payments, { nullable: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'account_id' })
+  payable_account?: any;
+
+  @ManyToOne('AccountReceivable', (account: any) => account.payments, { nullable: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'account_id' })
+  receivable_account?: any;
 
   @Column({ type: 'varchar', length: 30 })
   payment_method: PaymentMethod;

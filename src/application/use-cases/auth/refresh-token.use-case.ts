@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { IUserRepository } from '../../../domain/repositories/user.repository.interface';
+import { UserRole } from '../../../domain/entities/user.entity';
 import { RefreshTokenRepository } from '../../../infrastructure/persistence/typeorm/repositories/refresh-token.repository';
 import { TenantRepository } from '../../../infrastructure/persistence/typeorm/repositories/tenant.repository';
 import { AuthService } from './auth.service';
@@ -71,7 +72,7 @@ export class RefreshTokenUseCase {
       }
     }
 
-    const resolvedPermissions = user.role === 'OWNER'
+    const resolvedPermissions = user.role === UserRole.OWNER
       ? [
           'pos:create', 'pos:discount', 'pos:refund', 'clients:manage',
           'inventory:view', 'inventory:write', 'inventory:adjust', 'purchases:register', 'providers:manage',
@@ -115,7 +116,7 @@ export class RefreshTokenUseCase {
     };
 
     let enabledModules = tenantModules;
-    if (user.role !== 'OWNER') {
+    if (user.role !== UserRole.OWNER) {
       const resolvedModules = new Set<string>();
       resolvedPermissions.forEach(perm => {
         const mod = permissionToModuleMap[perm];

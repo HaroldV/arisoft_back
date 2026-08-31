@@ -1,13 +1,9 @@
 import { Module, OnModuleInit } from '@nestjs/common';
-import * as fs from 'fs';
-import * as path from 'path';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
 import { APP_GUARD } from '@nestjs/core';
-import { BACKEND_SYSTEM_CONSTANTS } from './domain/constants/domain.constants';
 import { InventoryController } from './presentation/web/controllers/inventory.controller';
 import { AuthController } from './presentation/web/controllers/auth.controller';
 import { SalesController } from './presentation/web/controllers/sales.controller';
@@ -38,7 +34,7 @@ import { AuthService } from './application/use-cases/auth/auth.service';
 import { FiscalRangesController } from './presentation/web/controllers/fiscal-ranges.controller';
 import { GetFiscalRangesUseCase } from './application/use-cases/tenant/get-fiscal-ranges.use-case';
 import { ConfigureFiscalRangeUseCase } from './application/use-cases/tenant/configure-fiscal-range.use-case';
-import { User, UserRole } from './domain/entities/user.entity';
+import { User } from './domain/entities/user.entity';
 import { TenantProfileController } from './presentation/web/controllers/tenant-profile.controller';
 import { GetCompanyProfileUseCase } from './application/use-cases/tenant/get-company-profile.use-case';
 import { UpdateCompanyProfileUseCase } from './application/use-cases/tenant/update-company-profile.use-case';
@@ -145,12 +141,15 @@ import { ApproveSubscriptionPaymentUseCase } from './application/use-cases/admin
 
 import { SystemSetting } from './domain/entities/system-setting.entity';
 import { ExchangeRateHistory } from './domain/entities/exchange-rate-history.entity';
+import { SchemaMigrationLock } from './domain/entities/schema-migration-lock.entity';
 import { SystemSettingRepository } from './infrastructure/persistence/typeorm/repositories/system-setting.repository';
 import { ExchangeRateHistoryRepository } from './infrastructure/persistence/typeorm/repositories/exchange-rate-history.repository';
 
 import { FileUploadController } from './presentation/web/controllers/file-upload.controller';
 import { UploadImageUseCase } from './application/use-cases/file/upload-image.use-case';
 import { S3Service } from './infrastructure/storage/s3-service';
+
+import { DatabaseMigrationService } from './infrastructure/persistence/typeorm/services/database-migration.service';
 
 @Module({
   imports: [
@@ -167,7 +166,7 @@ import { S3Service } from './infrastructure/storage/s3-service';
             type: 'postgres',
             url: databaseUrl,
             ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-            entities: [User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory],
+            entities: [User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory, SchemaMigrationLock],
             synchronize: false,
           };
         }
@@ -180,35 +179,57 @@ import { S3Service } from './infrastructure/storage/s3-service';
           password: configService.get<string>('DB_PASSWORD'),
           database: configService.get<string>('DB_NAME'),
           ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-          entities: [User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory],
+          entities: [User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory, SchemaMigrationLock],
           synchronize: false,
         };
       },
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory]),
+    TypeOrmModule.forFeature([User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory, SchemaMigrationLock]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: '15m' },
+        signOptions: { expiresIn: '12h' },
       }),
       inject: [ConfigService],
     }),
     ThrottlerModule.forRoot([
       {
         name: 'default',
-        ttl: 60000, // 1 minute
-        limit: 100, // General limit: 100 requests per minute
+        ttl: 60000,
+        limit: 100,
       },
     ]),
   ],
-  controllers: [InventoryController, AuthController, CommercialDocumentsController, SalesController, CashShiftsController, ProvidersController, ClientsController, BankAccountsController, CategoriesController, WarehouseLocationsController, FiscalRangesController, TenantProfileController, UsersController, RolesController, AccountsController, PurchasesController, SuperAdminController, SubscriptionController, FileUploadController],
+  controllers: [
+    InventoryController,
+    AuthController,
+    CommercialDocumentsController,
+    SalesController,
+    CashShiftsController,
+    ProvidersController,
+    ClientsController,
+    BankAccountsController,
+    CategoriesController,
+    WarehouseLocationsController,
+    FiscalRangesController,
+    TenantProfileController,
+    UsersController,
+    RolesController,
+    AccountsController,
+    PurchasesController,
+    SuperAdminController,
+    SubscriptionController,
+    FileUploadController,
+  ],
   providers: [
+    // Use Cases
     BulkUploadProductsUseCase,
     RegisterPurchaseUseCase,
     UpdateProductUseCase,
     DeleteProductUseCase,
+    CreateStockAdjustmentUseCase,
     CreateSaleUseCase,
     OpenShiftUseCase,
     GetActiveShiftUseCase,
@@ -229,32 +250,46 @@ import { S3Service } from './infrastructure/storage/s3-service';
     UpdateCompanyProfileUseCase,
     CreatePurchaseOrderUseCase,
     CreatePurchaseReceptionUseCase,
+    CancelAndReplacePurchaseOrderUseCase,
     BulkUpdatePricesUseCase,
+    CreateCommercialDocumentUseCase,
+    ConvertCommercialDocumentUseCase,
+    CreateRoleUseCase,
+    ListRolesUseCase,
+    CreateUserUseCase,
+    ListUsersUseCase,
+    UpdateUserUseCase,
+    CreateAccountUseCase,
+    RegisterPaymentUseCase,
+    BulkImportAccountsUseCase,
+    SaasPlanManagementUseCase,
+    RegisterSubscriptionPaymentUseCase,
+    ApproveSubscriptionPaymentUseCase,
+    UploadImageUseCase,
+
+    // Core Services & Auth Guards
     AuthService,
     JwtStrategy,
     JwtAuthGuard,
     ExchangeRateService,
     BcvCronService,
-    SystemSettingRepository,
-    ExchangeRateHistoryRepository,
-    SaasPlanManagementUseCase,
-    RegisterSubscriptionPaymentUseCase,
-    ApproveSubscriptionPaymentUseCase,
-    UploadImageUseCase,
+    StockSnapshotService,
     S3Service,
+    DatabaseMigrationService,
+
+    // Repositories
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
-    // In NestJS with TypeORM, we can inject repositories directly or wrap them
     {
       provide: 'IUserRepository',
       useClass: UserRepository,
     },
+    UserRepository,
     TenantRepository,
     ProductRepository,
     StockMoveRepository,
-    CreateStockAdjustmentUseCase,
     PasswordResetTokenRepository,
     RefreshTokenRepository,
     PurchaseInvoiceRepository,
@@ -269,120 +304,21 @@ import { S3Service } from './infrastructure/storage/s3-service';
     SalesFiscalNoteRepository,
     PurchaseFiscalNoteRepository,
     RoleRepository,
-    CreateRoleUseCase,
-    ListRolesUseCase,
-    CreateUserUseCase,
-    ListUsersUseCase,
-    UpdateUserUseCase,
     AccountReceivablePayableRepository,
     AccountReceivableRepository,
     AccountPayableRepository,
-    CreateAccountUseCase,
-    RegisterPaymentUseCase,
-    BulkImportAccountsUseCase,
-    StockSnapshotService,
     StockSnapshotRepository,
-    CreateCommercialDocumentUseCase,
-    ConvertCommercialDocumentUseCase,
     CommercialDocumentRepository,
-    CreatePurchaseOrderUseCase,
-    CreatePurchaseReceptionUseCase,
-    CancelAndReplacePurchaseOrderUseCase,
-    BulkUpdatePricesUseCase,
+    SystemSettingRepository,
+    ExchangeRateHistoryRepository,
   ],
 })
 export class AppModule implements OnModuleInit {
   constructor(
-    private readonly dataSource: DataSource,
-    private readonly authService: AuthService,
-  ) { }
+    private readonly databaseMigrationService: DatabaseMigrationService,
+  ) {}
 
   async onModuleInit() {
-    try {
-      const candidates = [
-        path.join(process.cwd(), 'src', 'infrastructure', 'persistence', 'typeorm', 'migrations'),
-        path.join(process.cwd(), 'dist', 'src', 'infrastructure', 'persistence', 'typeorm', 'migrations'),
-        path.join(process.cwd(), 'dist', 'infrastructure', 'persistence', 'typeorm', 'migrations'),
-      ];
-
-      const migrationsDir = candidates.find(dir => fs.existsSync(dir));
-
-      if (migrationsDir) {
-        const files = fs.readdirSync(migrationsDir)
-          .filter(f => f.endsWith('.sql'))
-          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-
-        for (const file of files) {
-          const filePath = path.join(migrationsDir, file);
-          const sql = fs.readFileSync(filePath, 'utf8');
-          if (sql && sql.trim().length > 0) {
-            try {
-              await this.dataSource.query(sql);
-            } catch (err) {
-              // Ignore table already exists or column already exists notices
-            }
-          }
-        }
-      }
-
-      // Ensure system default tenant exists for SuperAdmin
-      const tenantRepository = this.dataSource.getRepository(Tenant);
-      const defaultTenantId = BACKEND_SYSTEM_CONSTANTS.DEFAULT_SYSTEM_TENANT_ID;
-      const existingTenant = await tenantRepository.findOne({ where: { id: defaultTenantId } });
-      
-      if (!existingTenant) {
-        const systemTenant = new Tenant({
-          id: defaultTenantId,
-          company_name: 'ArivSoft System Administration',
-          tax_id: 'J-00000000-0',
-          plan_type: 'ENTERPRISE',
-          trial_expires_at: new Date('2099-12-31'),
-          is_active: true,
-          plan_is_active: true,
-        });
-        await tenantRepository.save(systemTenant);
-      }
-
-      // Ensure configured SuperAdmin user exists, is active, unlocked and has correct password on startup via TypeORM Repository
-      const targetSuperAdminEmail = BACKEND_SYSTEM_CONSTANTS.SUPERADMIN_EMAIL.toLowerCase().trim();
-      const rawPassword = BACKEND_SYSTEM_CONSTANTS.DEFAULT_PASSWORD_ONBOARDING;
-      const freshHash = await this.authService.hashPassword(rawPassword);
-      const userRepository = this.dataSource.getRepository(User);
-      
-      const adminUsers = await userRepository.find({
-        where: [
-          { email: targetSuperAdminEmail },
-          { role: 'SUPER_ADMIN' }
-        ]
-      });
-
-      if (adminUsers.length > 0) {
-        for (const adminUser of adminUsers) {
-          adminUser.email = targetSuperAdminEmail;
-          adminUser.password_hash = freshHash;
-          adminUser.is_active = true;
-          adminUser.failed_login_attempts = 0;
-          adminUser.is_temporary_password = false;
-          await userRepository.save(adminUser);
-        }
-      } else {
-        const newSuperAdmin = new User({
-          id: 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a99',
-          tenant_id: defaultTenantId,
-          full_name: 'Super Admin',
-          email: targetSuperAdminEmail,
-          password_hash: freshHash,
-          role: UserRole.SUPER_ADMIN,
-          is_active: true,
-          failed_login_attempts: 0,
-          is_temporary_password: false,
-        });
-        await userRepository.save(newSuperAdmin);
-      }
-
-      console.log(`✅ SuperAdmin account (${targetSuperAdminEmail}) explicitly reset, unlocked and active on startup.`);
-    } catch (err) {
-      console.warn('Notice running SQL migrations or resetting password on startup:', err);
-    }
+    await this.databaseMigrationService.runMigrationsAndBootstrap();
   }
 }

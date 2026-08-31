@@ -27,10 +27,17 @@ export class PurchasesController {
     private readonly bulkUpdatePricesUseCase: BulkUpdatePricesUseCase,
   ) { }
 
+  private getRequestContext(req: any) {
+    const tenantId = req.user?.tenant_id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.headers?.['tenant-id'];
+    const userId = req.user?.sub || req.user?.userId || req.user?.id;
+    const userName = req.user?.full_name || req.user?.email || 'Operador';
+    return { tenantId, userId, userName };
+  }
+
   @Get('purchases/orders')
   async getOrders(@Req() req: any) {
     try {
-      const tenantId = req.user?.tenant_id || req.user?.tenantId;
+      const { tenantId } = this.getRequestContext(req);
       if (!tenantId) {
         return [];
       }
@@ -48,9 +55,7 @@ export class PurchasesController {
   @Post('purchases/orders')
   async createOrder(@Req() req: any, @Body() dto: CreatePurchaseOrderDto) {
     try {
-      const tenantId = req.user?.tenant_id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.headers?.['tenant-id'];
-      const userId = req.user?.sub || req.user?.userId || '00000000-0000-0000-0000-000000000000';
-      const userName = req.user?.full_name || req.user?.email || 'Operador';
+      const { tenantId, userId, userName } = this.getRequestContext(req);
       return await this.createOrderUseCase.execute(tenantId, userId, userName, dto);
     } catch (err: any) {
       console.error('Error creating purchase order:', err);
@@ -65,9 +70,7 @@ export class PurchasesController {
     @Body() dto: CancelAndReplaceOrderDto,
   ) {
     try {
-      const tenantId = req.user?.tenant_id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.headers?.['tenant-id'];
-      const userId = req.user?.sub || req.user?.userId || '00000000-0000-0000-0000-000000000000';
-      const userName = req.user?.full_name || req.user?.email || 'Operador';
+      const { tenantId, userId, userName } = this.getRequestContext(req);
       return await this.cancelAndReplaceOrderUseCase.execute(tenantId, userId, userName, orderIdToCancel, dto);
     } catch (err: any) {
       console.error('Error canceling and replacing purchase order:', err);
@@ -77,7 +80,10 @@ export class PurchasesController {
 
   @Get('purchases/receptions')
   async getReceptions(@Req() req: any) {
-    const tenantId = req.headers['x-tenant-id'] as string || req.user?.tenant_id || req.user?.tenantId || '00000000-0000-0000-0000-000000000000';
+    const { tenantId } = this.getRequestContext(req);
+    if (!tenantId) {
+      return [];
+    }
     return await this.receptionRepository.find({
       where: { tenant_id: tenantId },
       relations: ['items'],
@@ -88,9 +94,7 @@ export class PurchasesController {
   @Post('purchases/receptions')
   async createReception(@Req() req: any, @Body() dto: CreatePurchaseReceptionDto) {
     try {
-      const tenantId = req.headers['x-tenant-id'] as string || req.user?.tenant_id || req.user?.tenantId || '00000000-0000-0000-0000-000000000000';
-      const userId = req.user?.sub || req.user?.userId || '00000000-0000-0000-0000-000000000000';
-      const userName = req.user?.full_name || req.user?.email || 'Operador';
+      const { tenantId, userId, userName } = this.getRequestContext(req);
       return await this.createReceptionUseCase.execute(tenantId, userId, userName, dto);
     } catch (err: any) {
       console.error('Error creating purchase reception:', err);
@@ -100,14 +104,13 @@ export class PurchasesController {
 
   @Post('inventory/products/bulk-update-prices')
   async bulkUpdatePrices(@Req() req: any, @Body() dto: BulkUpdatePricesDto) {
-    const tenantId = req.user.tenant_id || req.user.tenantId;
-    const userName = req.user.full_name || req.user.email || 'Operador';
+    const { tenantId, userName } = this.getRequestContext(req);
     return await this.bulkUpdatePricesUseCase.execute(tenantId, userName, dto);
   }
 
   @Get('inventory/products/cost-history')
   async getCostHistory(@Req() req: any, @Query('productId') productId?: string) {
-    const tenantId = req.user.tenant_id || req.user.tenantId;
+    const { tenantId } = this.getRequestContext(req);
     const where: any = { tenant_id: tenantId };
     if (productId) where.product_id = productId;
     return await this.costHistoryRepository.find({

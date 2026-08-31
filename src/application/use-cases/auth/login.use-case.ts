@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { IUserRepository } from '../../../domain/repositories/user.repository.interface';
+import { UserRole } from '../../../domain/entities/user.entity';
 import { TenantRepository } from '../../../infrastructure/persistence/typeorm/repositories/tenant.repository';
 import { RefreshTokenRepository } from '../../../infrastructure/persistence/typeorm/repositories/refresh-token.repository';
 import { AuthService } from './auth.service';
@@ -49,7 +50,7 @@ export class LoginUseCase {
       throw new UnauthorizedException(`Correo o contraseña incorrectos. Llevas ${attempts} de 3 intentos. Te qued${remaining === 1 ? 'a 1 intento' : `an ${remaining} intentos`}.`);
     }
 
-    // Reset failed attempts counter on successful login
+    // Reset failed login attempts on success
     if (user.failed_login_attempts > 0) {
       user.failed_login_attempts = 0;
       await this.userRepository.save(user);
@@ -60,7 +61,7 @@ export class LoginUseCase {
 
     // Permitir el inicio de sesión para explorar la plataforma e ir a /settings/subscription
     const isTenantActive = tenant ? tenant.is_active : true;
-    const isPlanActive = user.role === 'SUPER_ADMIN' ? true : (tenant ? Boolean(tenant.plan_is_active) : false);
+    const isPlanActive = user.role === UserRole.SUPER_ADMIN ? true : (tenant ? Boolean(tenant.plan_is_active) : false);
 
     const tenantModules = tenant?.settings?.enabled_modules || ['POS', 'SALES', 'INVENTORY_PURCHASES', 'INVENTORY', 'SETTINGS', 'BANKS', 'PAYROLL', 'REPORTS']; // Default modules
     
@@ -88,11 +89,11 @@ export class LoginUseCase {
       'company:manage', 'fiscal:manage', 'users:manage'
     ];
 
-    const resolvedPermissions = user.role === 'SUPER_ADMIN'
+    const resolvedPermissions = user.role === UserRole.SUPER_ADMIN
       ? defaultOwnerPermissions
       : (user.allowed_permissions && user.allowed_permissions.length > 0)
         ? user.allowed_permissions
-        : (user.role === 'OWNER')
+        : (user.role === UserRole.OWNER)
           ? (tenant?.settings?.enabled_permissions || defaultOwnerPermissions)
           : rolePermissions;
 
@@ -130,7 +131,7 @@ export class LoginUseCase {
 
     // SUPER_ADMIN gets unrestricted access to all platform modules
     let enabledModules = tenantModules;
-    if (user.role === 'SUPER_ADMIN') {
+    if (user.role === UserRole.SUPER_ADMIN) {
       enabledModules = ['POS', 'SALES', 'INVENTORY', 'BANKS', 'REPORTS', 'PAYROLL', 'SETTINGS', 'ADMIN'];
     } else {
       const resolvedModules = new Set<string>();
