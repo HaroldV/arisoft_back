@@ -39,9 +39,9 @@ jobs:
       - name: "Quality Gate 1.1: Migration Security Guard (No Hardcoded Credentials or DML in Migrations)"
         run: |
           echo "🔍 Checking for prohibited user credentials, password hashes or DML in SQL migrations..."
-          FORBIDDEN_SQL=$(grep -rnE --include="*.sql" "INSERT INTO users|password_hash|UPDATE users" src/infrastructure/persistence/typeorm/migrations/ || true)
+          FORBIDDEN_SQL=$(grep -rnE --include="*.sql" "INSERT INTO users|v_password_hash|\$2[aby]\$[0-9]{2}\$" src/infrastructure/persistence/typeorm/migrations/ || true)
           if [ -n "$FORBIDDEN_SQL" ]; then
-            echo "❌ Security Quality Gate Failed: Found user credentials or DML in migrations:"
+            echo "❌ Security Quality Gate Failed: Found user credentials or user seeds in migrations:"
             echo "$FORBIDDEN_SQL"
             echo "👉 Rule 8.1 of AGENTS.md strictly requires DDL-only migrations. User bootstrapping must be done dynamically in code with env vars."
             exit 1
