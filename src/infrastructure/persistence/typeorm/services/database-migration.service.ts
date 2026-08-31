@@ -1,10 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AuthService } from '../../../../application/use-cases/auth/auth.service';
 import { Tenant } from '../../../../domain/entities/tenant.entity';
 import { User, UserRole } from '../../../../domain/entities/user.entity';
+import { SchemaMigrationLock } from '../../../../domain/entities/schema-migration-lock.entity';
 import { BACKEND_SYSTEM_CONSTANTS } from '../../../../domain/constants/domain.constants';
 
 @Injectable()
@@ -14,18 +16,16 @@ export class DatabaseMigrationService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly authService: AuthService,
+    @InjectRepository(Tenant)
+    private readonly tenantRepository: Repository<Tenant>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(SchemaMigrationLock)
+    private readonly migrationLockRepository: Repository<SchemaMigrationLock>,
   ) {}
 
   async runMigrationsAndBootstrap(): Promise<void> {
     try {
-      // 1. Ensure atomic migrations lock table exists
-      await this.dataSource.query(`
-        CREATE TABLE IF NOT EXISTS schema_migrations_lock (
-          filename VARCHAR(255) PRIMARY KEY,
-          executed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        );
-      `);
-
       const candidates = [
         path.join(process.cwd(), 'src', 'infrastructure', 'persistence', 'typeorm', 'migrations'),
         path.join(process.cwd(), 'dist', 'src', 'infrastructure', 'persistence', 'typeorm', 'migrations'),
@@ -35,10 +35,14 @@ export class DatabaseMigrationService {
       const migrationsDir = candidates.find(dir => fs.existsSync(dir));
 
       if (migrationsDir) {
-        const executedRows: { filename: string }[] = await this.dataSource.query(
-          `SELECT filename FROM schema_migrations_lock;`
-        );
-        const executedSet = new Set(executedRows.map(r => r.filename));
+        let executedLocks: SchemaMigrationLock[] = [];
+        try {
+          executedLocks = await this.migrationLockRepository.find();
+        } catch {
+          executedLocks = [];
+        }
+
+        const executedSet = new Set(executedLocks.map(r => r.filename));
 
         const files = fs.readdirSync(migrationsDir)
           .filter(f => f.endsWith('.sql'))
@@ -53,18 +57,22 @@ export class DatabaseMigrationService {
           const sql = fs.readFileSync(filePath, 'utf8');
           if (sql && sql.trim().length > 0) {
             try {
-              await this.dataSource.query(sql);
-              await this.dataSource.query(
-                `INSERT INTO schema_migrations_lock (filename) VALUES ($1) ON CONFLICT (filename) DO NOTHING;`,
-                [file]
-              );
+              const queryRunner = this.dataSource.createQueryRunner();
+              await queryRunner.connect();
+              try {
+                await queryRunner.query(sql);
+              } finally {
+                await queryRunner.release();
+              }
+
+              await this.migrationLockRepository.save(new SchemaMigrationLock({ filename: file }));
               this.logger.log(`🔒 Migration [${file}] applied and locked.`);
             } catch (err: any) {
-              // Mark as locked if it already existed/was applied previously so it doesn't log every restart
-              await this.dataSource.query(
-                `INSERT INTO schema_migrations_lock (filename) VALUES ($1) ON CONFLICT (filename) DO NOTHING;`,
-                [file]
-              );
+              try {
+                await this.migrationLockRepository.save(new SchemaMigrationLock({ filename: file }));
+              } catch {
+                // Ignore lock save failure on legacy DB state
+              }
               this.logger.debug(`Notice executing migration [${file}]: ${err.message || err}`);
             }
           }
@@ -72,9 +80,8 @@ export class DatabaseMigrationService {
       }
 
       // 2. Ensure system default tenant exists (Additive-only)
-      const tenantRepository = this.dataSource.getRepository(Tenant);
       const defaultTenantId = BACKEND_SYSTEM_CONSTANTS.DEFAULT_SYSTEM_TENANT_ID;
-      const existingTenant = await tenantRepository.findOne({ where: { id: defaultTenantId } });
+      const existingTenant = await this.tenantRepository.findOne({ where: { id: defaultTenantId } });
       
       if (!existingTenant) {
         const systemTenant = new Tenant({
@@ -86,14 +93,13 @@ export class DatabaseMigrationService {
           is_active: true,
           plan_is_active: true,
         });
-        await tenantRepository.save(systemTenant);
+        await this.tenantRepository.save(systemTenant);
       }
 
       // 3. Ensure configured SuperAdmin user exists ONLY if missing
       const targetSuperAdminEmail = BACKEND_SYSTEM_CONSTANTS.SUPERADMIN_EMAIL.toLowerCase().trim();
-      const userRepository = this.dataSource.getRepository(User);
       
-      const existingSuperAdmin = await userRepository.findOne({
+      const existingSuperAdmin = await this.userRepository.findOne({
         where: [
           { email: targetSuperAdminEmail },
           { role: UserRole.SUPER_ADMIN }
@@ -114,7 +120,7 @@ export class DatabaseMigrationService {
           failed_login_attempts: 0,
           is_temporary_password: false,
         });
-        await userRepository.save(newSuperAdmin);
+        await this.userRepository.save(newSuperAdmin);
         this.logger.log(`✅ SuperAdmin account created on first startup.`);
       }
     } catch (err) {
