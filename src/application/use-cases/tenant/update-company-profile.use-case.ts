@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Tenant } from '../../../domain/entities/tenant.entity';
 import { Sale } from '../../../domain/entities/sale.entity';
+import { UserRole } from '../../../domain/entities/user.entity';
 import { UpdateCompanyProfileDto } from './dto/update-company-profile.dto';
 
 @Injectable()
@@ -20,7 +21,7 @@ export class UpdateCompanyProfileUseCase {
       throw new NotFoundException(`Tenant with ID ${tenantId} not found`);
     }
 
-    const isOwner = role === 'OWNER';
+    const isOwner = role === UserRole.OWNER;
 
     // 1. Role validation: Only OWNER can change legal identity fields
     if (!isOwner) {

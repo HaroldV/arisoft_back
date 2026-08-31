@@ -72,7 +72,7 @@ export class RefreshTokenUseCase {
       }
     }
 
-    const resolvedPermissions = user.role === 'OWNER'
+    const resolvedPermissions = user.role === UserRole.OWNER
       ? [
           'pos:create', 'pos:discount', 'pos:refund', 'clients:manage',
           'inventory:view', 'inventory:write', 'inventory:adjust', 'purchases:register', 'providers:manage',
