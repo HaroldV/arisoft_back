@@ -9,9 +9,10 @@ import { CreatePurchaseOrderUseCase } from '../../../application/use-cases/purch
 import { CreatePurchaseOrderDto } from '../../../application/use-cases/purchases/create-purchase-order.dto';
 import { CreatePurchaseReceptionUseCase, CreatePurchaseReceptionDto } from '../../../application/use-cases/purchases/create-purchase-reception.use-case';
 import { CancelAndReplacePurchaseOrderUseCase, CancelAndReplaceOrderDto } from '../../../application/use-cases/purchases/cancel-and-replace-purchase-order.use-case';
+import { CancelPurchaseOrderUseCase, CancelPurchaseOrderDto } from '../../../application/use-cases/purchases/cancel-purchase-order.use-case';
 import { BulkUpdatePricesUseCase, BulkUpdatePricesDto } from '../../../application/use-cases/inventory/bulk-update-prices.use-case';
 
-@Controller()
+@Controller('purchases')
 @UseGuards(JwtAuthGuard)
 export class PurchasesController {
   constructor(
@@ -24,6 +25,7 @@ export class PurchasesController {
     private readonly createOrderUseCase: CreatePurchaseOrderUseCase,
     private readonly createReceptionUseCase: CreatePurchaseReceptionUseCase,
     private readonly cancelAndReplaceOrderUseCase: CancelAndReplacePurchaseOrderUseCase,
+    private readonly cancelOrderUseCase: CancelPurchaseOrderUseCase,
     private readonly bulkUpdatePricesUseCase: BulkUpdatePricesUseCase,
   ) { }
 
@@ -34,7 +36,7 @@ export class PurchasesController {
     return { tenantId, userId, userName };
   }
 
-  @Get('purchases/orders')
+  @Get('orders')
   async getOrders(@Req() req: any) {
     try {
       const { tenantId } = this.getRequestContext(req);
@@ -52,7 +54,7 @@ export class PurchasesController {
     }
   }
 
-  @Post('purchases/orders')
+  @Post('orders')
   async createOrder(@Req() req: any, @Body() dto: CreatePurchaseOrderDto) {
     try {
       const { tenantId, userId, userName } = this.getRequestContext(req);
@@ -63,7 +65,22 @@ export class PurchasesController {
     }
   }
 
-  @Post('purchases/orders/:id/cancel-and-replace')
+  @Post('orders/:id/cancel')
+  async cancelOrder(
+    @Req() req: any,
+    @Param('id') orderId: string,
+    @Body() dto: CancelPurchaseOrderDto,
+  ) {
+    try {
+      const { tenantId, userId, userName } = this.getRequestContext(req);
+      return await this.cancelOrderUseCase.execute(tenantId, userId, userName, orderId, dto);
+    } catch (err: any) {
+      console.error('Error canceling purchase order:', err);
+      throw err;
+    }
+  }
+
+  @Post('orders/:id/cancel-and-replace')
   async cancelAndReplaceOrder(
     @Req() req: any,
     @Param('id') orderIdToCancel: string,
@@ -78,7 +95,7 @@ export class PurchasesController {
     }
   }
 
-  @Get('purchases/receptions')
+  @Get('receptions')
   async getReceptions(@Req() req: any) {
     const { tenantId } = this.getRequestContext(req);
     if (!tenantId) {
@@ -91,7 +108,7 @@ export class PurchasesController {
     });
   }
 
-  @Post('purchases/receptions')
+  @Post('receptions')
   async createReception(@Req() req: any, @Body() dto: CreatePurchaseReceptionDto) {
     try {
       const { tenantId, userId, userName } = this.getRequestContext(req);
@@ -102,13 +119,13 @@ export class PurchasesController {
     }
   }
 
-  @Post('inventory/products/bulk-update-prices')
+  @Post('products/bulk-update-prices')
   async bulkUpdatePrices(@Req() req: any, @Body() dto: BulkUpdatePricesDto) {
     const { tenantId, userName } = this.getRequestContext(req);
     return await this.bulkUpdatePricesUseCase.execute(tenantId, userName, dto);
   }
 
-  @Get('inventory/products/cost-history')
+  @Get('products/cost-history')
   async getCostHistory(@Req() req: any, @Query('productId') productId?: string) {
     const { tenantId } = this.getRequestContext(req);
     const where: any = { tenant_id: tenantId };

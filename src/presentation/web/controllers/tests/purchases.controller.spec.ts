@@ -10,6 +10,8 @@ describe('PurchasesController E2E / Integration Suite', () => {
   let createOrderUseCase: jest.Mocked<CreatePurchaseOrderUseCase>;
   let createReceptionUseCase: any;
   let cancelAndReplaceOrderUseCase: any;
+  let cancelOrderUseCase: any;
+  let reverseReceptionUseCase: any;
   let bulkUpdatePricesUseCase: any;
 
   beforeEach(() => {
@@ -31,6 +33,9 @@ describe('PurchasesController E2E / Integration Suite', () => {
     cancelAndReplaceOrderUseCase = {
       execute: jest.fn(),
     };
+    cancelOrderUseCase = {
+      execute: jest.fn(),
+    };
     bulkUpdatePricesUseCase = {
       execute: jest.fn(),
     };
@@ -42,6 +47,7 @@ describe('PurchasesController E2E / Integration Suite', () => {
       createOrderUseCase,
       createReceptionUseCase,
       cancelAndReplaceOrderUseCase,
+      cancelOrderUseCase,
       bulkUpdatePricesUseCase,
     );
   });

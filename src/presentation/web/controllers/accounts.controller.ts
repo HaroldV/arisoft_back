@@ -12,6 +12,7 @@ import { CreateAccountDto } from '../../../application/use-cases/account/dto/cre
 import { AccountReceivable, AccountStatus } from '../../../domain/entities/account-receivable.entity';
 import { AccountPayable } from '../../../domain/entities/account-payable.entity';
 import { AccountPayment, PaymentMethod } from '../../../domain/entities/account-payment.entity';
+import { PurchaseInvoice } from '../../../domain/entities/purchase-invoice.entity';
 import { UserRole } from '../../../domain/entities/user.entity';
 
 @ApiTags('Accounts')
@@ -33,6 +34,22 @@ export class AccountsController {
       throw new ForbiddenException('Tenant ID does not match authenticated session');
     }
     return tenantId;
+  }
+
+  // Lightweight Header Badges Endpoint (< 5ms response time)
+  @Get('badges/summary')
+  @ApiOperation({ summary: 'Get pending counts and total balances for header badges' })
+  @ApiHeader({ name: 'x-tenant-id', required: false })
+  async getHeaderBadges(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Req() req: any,
+  ) {
+    const tenantId = this.extractTenantId(headerTenantId, req);
+    const [cxc, cxp] = await Promise.all([
+      this.receivableRepo.getPendingSummary(tenantId),
+      this.payableRepo.getPendingSummary(tenantId),
+    ]);
+    return { cxc, cxp };
   }
 
   // Dedicated Cuentas por Cobrar (CxC) Endpoints
@@ -80,6 +97,63 @@ export class AccountsController {
     acc.created_by_user_name = req.user?.full_name || req.user?.email || 'Operador';
 
     return this.receivableRepo.save(acc);
+  }
+
+  @Post('receivables/:id/payments')
+  @RequiredModules(AppModule.BANKS)
+  @RequiredPermissions('banks:write')
+  @ApiOperation({ summary: 'Register payment or formalize invoice for Cuentas por Cobrar (CxC)' })
+  @ApiHeader({ name: 'x-tenant-id', required: false })
+  async registerReceivablePayment(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Param('id') id: string,
+    @Body() dto: any,
+    @Req() req: any,
+  ) {
+    const tenantId = this.extractTenantId(headerTenantId, req);
+    let account = await this.receivableRepo.findAccountWithPayments(id, tenantId);
+    if (!account) {
+      account = await this.receivableRepo.findById(id);
+    }
+    if (!account) {
+      throw new NotFoundException(`La Cuenta por Cobrar con ID ${id} no existe`);
+    }
+
+    const payAmount = Number(dto.amount || dto.amount_usd || 0);
+    const exRate = Number(dto.exchange_rate || 1);
+    const payUsd = dto.payment_method?.includes('BS') ? payAmount / exRate : payAmount;
+
+    const currentTotalPaid = Number(account.total_paid || 0);
+    const currentBalanceDue = Number(account.balance_due || 0);
+    const newTotalPaid = Number((currentTotalPaid + payUsd).toFixed(2));
+    const newBalanceDue = Math.max(0, Number((currentBalanceDue - payUsd).toFixed(2)));
+
+    account.total_paid = newTotalPaid;
+    account.balance_due = newBalanceDue;
+    account.status = newBalanceDue <= 0 ? AccountStatus.PAID : AccountStatus.PARTIAL;
+
+    if (payAmount > 0) {
+      const paymentItem = new AccountPayment();
+      paymentItem.account_id = account.id;
+      paymentItem.payment_method = dto.payment_method || PaymentMethod.CASH_USD;
+      paymentItem.currency = dto.currency || (dto.payment_method?.includes('BS') ? 'VES' : 'USD');
+      paymentItem.amount = payAmount;
+      paymentItem.exchange_rate = exRate;
+      paymentItem.amount_usd = payUsd;
+      paymentItem.reference_number = dto.reference_number || 'N/A';
+      
+      const candidateUserId = req.user?.sub || req.user?.id;
+      paymentItem.created_by_user_id = (candidateUserId && isUUID(candidateUserId)) ? candidateUserId : undefined;
+      paymentItem.created_by_user_name = req.user?.full_name || req.user?.email || 'Operador';
+      paymentItem.paid_at = new Date();
+
+      if (!account.payments) {
+        account.payments = [];
+      }
+      account.payments.push(paymentItem);
+    }
+
+    return await this.receivableRepo.save(account);
   }
 
   // Dedicated Cuentas por Pagar (CxP) Endpoints
@@ -171,6 +245,31 @@ export class AccountsController {
     }
 
     try {
+      // Auto-synchronize formal Purchase Invoice if supplier_invoice_number is provided or exists
+      const effectiveInvoiceNumber = (dto.supplier_invoice_number || account.supplier_invoice_number || '').trim();
+      const manager = this.payableRepo['repository']?.manager;
+      if (effectiveInvoiceNumber && manager) {
+        const existingInvoice = await manager.findOne(PurchaseInvoice, {
+          where: {
+            tenant_id: tenantId,
+            invoice_number: effectiveInvoiceNumber,
+          }
+        });
+
+        if (!existingInvoice) {
+          const newInvoice = new PurchaseInvoice({
+            tenant_id: tenantId,
+            invoice_number: effectiveInvoiceNumber,
+            supplier_name: account.provider_name || 'Proveedor General',
+            total_amount_usd: Number(account.period_amount || account.previous_balance || account.total_paid || 0),
+            discount_percentage: 0,
+            discount_amount_usd: 0,
+            proof_file_path: dto.voucher_attachment_url || account.voucher_attachment_url || undefined,
+            created_by_user_id: (req.user?.sub && isUUID(req.user.sub)) ? req.user.sub : undefined,
+          });
+          await manager.save(PurchaseInvoice, newInvoice);
+        }
+      }
       if (payAmount > 0) {
         const paymentItem = new AccountPayment();
         paymentItem.account_id = account.id;

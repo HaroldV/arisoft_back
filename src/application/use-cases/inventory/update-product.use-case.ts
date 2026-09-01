@@ -43,22 +43,25 @@ export class UpdateProductUseCase {
       product.sku = trimmedSku;
     }
 
-    // 4. Map updates
+    // 4. Map updates cleanly (Canonical DTO properties)
     if (dto.name !== undefined) product.name = dto.name.trim();
     if (dto.description !== undefined) product.description = dto.description;
-    if (dto.imageUrl !== undefined || dto.image_url !== undefined) {
-      product.image_url = dto.imageUrl || dto.image_url || undefined;
-    }
+    if (dto.imageUrl !== undefined) product.image_url = dto.imageUrl || undefined;
     if (dto.costUsd !== undefined) product.cost_usd = dto.costUsd;
     if (dto.priceUsd !== undefined) product.price_usd = dto.priceUsd;
     if (dto.taxRate !== undefined) product.tax_rate = dto.taxRate;
+    if (dto.taxType !== undefined) product.tax_type = dto.taxType;
+    if (dto.isPerishable !== undefined) product.is_perishable = dto.isPerishable;
+    if (dto.hasBatchControl !== undefined) product.has_batch_control = dto.hasBatchControl;
     if (dto.unitOfMeasure !== undefined) product.unit_of_measure = dto.unitOfMeasure;
+    
     if (dto.categoryId !== undefined) {
       product.category_id = dto.categoryId || null;
     } else if (dto.category !== undefined) {
       const cat = await this.categoryRepo.findOrCreateByName(dto.category);
       product.category_id = cat.id;
     }
+
     if (dto.variations !== undefined) product.variations = dto.variations;
     if (dto.advancedFields !== undefined) product.advanced_fields = dto.advancedFields;
 

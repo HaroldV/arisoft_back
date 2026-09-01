@@ -176,4 +176,51 @@ describe('InventoryController', () => {
       dto,
     );
   });
+
+  describe('updateProduct (PUT / PATCH)', () => {
+    it('should successfully update product using user edit payload', async () => {
+      const tenantId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+      const productId = '85662d3e-b937-49ca-8d27-b8e2016cde0a';
+      const userPayload = {
+        name: 'Aceite Mazeite Maíz 1 Litro',
+        costUsd: 13.2,
+        priceUsd: 24.1,
+        taxRate: 16,
+        categoryId: 'e9a53879-d4fb-4322-951a-45d450b6a744',
+        unitOfMeasure: 'litros',
+        variations: [],
+        advancedFields: {
+          expiration_date: '',
+          location: '',
+          security_stock: 0,
+          description: '',
+        },
+      };
+
+      const mockRequest = {
+        user: {
+          sub: 'u1',
+          tenant_id: tenantId,
+        },
+      };
+
+      (updateUseCase.execute as jest.Mock).mockResolvedValue({
+        id: productId,
+        ...userPayload,
+      });
+
+      const res = await controller.updateProduct(productId, tenantId, userPayload as any, mockRequest as any);
+
+      expect(updateUseCase.execute).toHaveBeenCalledWith(
+        productId, 
+        userPayload, 
+        { id: 'u1', name: undefined }
+      );
+      expect(res).toHaveProperty('id', productId);
+      expect(res.name).toBe('Aceite Mazeite Maíz 1 Litro');
+
+      const resPut = await controller.updateProductPut(productId, tenantId, userPayload as any, mockRequest as any);
+      expect(resPut).toHaveProperty('id', productId);
+    });
+  });
 });

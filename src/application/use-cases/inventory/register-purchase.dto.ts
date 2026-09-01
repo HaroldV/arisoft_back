@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsOptional, IsArray, ValidateNested, IsUUID, IsNumber, Min, Max } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsArray, ValidateNested, IsUUID, IsNumber, Min, Max, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -121,11 +121,86 @@ export class RegisterPurchaseDto {
   discountPercentage?: number;
 
   @ApiProperty({
+    description: 'RIF o Identificador Fiscal del proveedor',
+    example: 'J-12345678-9',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  supplierRif?: string;
+
+  @ApiProperty({
+    description: 'Condición de pago (ej: CONTADO, CREDITO_7, CREDITO_15, CREDITO_30, CREDITO_60)',
+    example: 'CONTADO',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  paymentTerm?: string;
+
+  @ApiProperty({
+    description: 'Moneda del documento (USD, VES)',
+    example: 'USD',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @ApiProperty({
+    description: 'Tasa de cambio aplicada al momento de la factura',
+    example: 52.40,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  exchangeRate?: number;
+
+  @ApiProperty({
+    description: 'Fecha de emisión de la factura (YYYY-MM-DD)',
+    example: '2026-08-31',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  issueDate?: string;
+
+  @ApiProperty({
+    description: 'Fecha límite de pago para facturas a crédito (YYYY-MM-DD)',
+    example: '2026-09-30',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  dueDate?: string;
+
+  @ApiProperty({
+    description: 'Porcentaje de recargo o flete global aplicado a la factura (ej: 5 para 5%)',
+    example: 5.00,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  globalSurchargePercentage?: number;
+
+  @ApiProperty({
+    description: 'Notas u observaciones de la compra',
+    example: 'Factura con flete incluido',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ApiProperty({
     description: 'Indica si la compra es a crédito (generará registro en Cuentas por Pagar)',
     example: true,
     required: false,
   })
   @IsOptional()
+  @IsBoolean()
   isCredit?: boolean;
 
   @ApiProperty({

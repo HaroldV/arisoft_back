@@ -64,13 +64,26 @@ describe('PurchaseInvoiceRepository', () => {
       ]),
     };
 
+    const mockStandaloneQB: any = {
+      leftJoin: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([]),
+    };
+
     mockTypeormRepository.createQueryBuilder = jest.fn().mockReturnValue(mockQueryBuilder);
+    mockTypeormRepository.manager.createQueryBuilder = jest.fn().mockReturnValue(mockStandaloneQB);
 
     const result = await repository.findPurchasesWithCreator();
 
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('1');
     expect(result[0].total_amount_usd).toBe(150.5);
+    expect(result[0].payment_status).toBe('PAID');
+    expect(result[0].total_paid_usd).toBe(150.5);
+    expect(result[0].balance_due_usd).toBe(0.00);
     expect(result[0].created_by.full_name).toBe('Creator Name');
     expect(mockQueryBuilder.leftJoin).toHaveBeenCalled();
   });
@@ -108,6 +121,12 @@ describe('PurchaseInvoiceRepository', () => {
           product_name: 'Product Name',
         },
       ]),
+      getOne: jest.fn().mockResolvedValue({
+        id: 'payable-123',
+        status: 'PENDING',
+        total_paid: 50.00,
+        balance_due: 100.50,
+      }),
     };
 
     (mockTypeormRepository.manager.createQueryBuilder as jest.Mock).mockReturnValue(mockItemQueryBuilder);
@@ -116,6 +135,10 @@ describe('PurchaseInvoiceRepository', () => {
 
     expect(result).toBeDefined();
     expect(result.id).toBe('invoice-123');
+    expect(result.payable_id).toBe('payable-123');
+    expect(result.payment_status).toBe('PENDING');
+    expect(result.total_paid_usd).toBe(50.00);
+    expect(result.balance_due_usd).toBe(100.50);
     expect(result.created_by.full_name).toBe('Creator Name');
     expect(result.items).toHaveLength(1);
     expect(result.items[0].product_sku).toBe('SKU-ABC');

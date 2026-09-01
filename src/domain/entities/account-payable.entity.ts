@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { AccountPayment } from './account-payment.entity';
-import { AccountStatus } from './account-receivable.entity';
+import { AccountStatusEnum } from '../constants/domain.constants';
 
 @Entity('accounts_payable')
 export class AccountPayable {
@@ -40,8 +40,8 @@ export class AccountPayable {
   @Column({ type: 'decimal', precision: 14, scale: 2, default: 0.00 })
   balance_due: number;
 
-  @Column({ type: 'varchar', length: 20, default: AccountStatus.PENDING })
-  status: AccountStatus;
+  @Column({ type: 'varchar', length: 20, default: AccountStatusEnum.PENDING })
+  status: AccountStatusEnum;
 
   @Column({ type: 'uuid', nullable: true })
   created_by_user_id?: string;

@@ -22,6 +22,27 @@ export enum SaasPlanEnum {
   CORPORATIVO = 'CORPORATIVO',
 }
 
+export enum AccountStatusEnum {
+  PENDING = 'PENDING',
+  PARTIAL = 'PARTIAL',
+  PAID = 'PAID',
+  OVERDUE = 'OVERDUE',
+}
+
+export enum PurchaseOrderStatusEnum {
+  DRAFT = 'DRAFT',
+  SENT = 'SENT',
+  APPROVED = 'APPROVED',
+  PARTIALLY_RECEIVED = 'PARTIALLY_RECEIVED',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+}
+
+export const FINANCIAL_CONSTANTS = {
+  MIN_BALANCE_THRESHOLD: 0.01,
+  ZERO_STRING_FALLBACK: '0',
+};
+
 export enum SystemModuleEnum {
   POS = 'POS',
   SALES = 'SALES',

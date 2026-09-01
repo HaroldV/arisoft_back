@@ -8,7 +8,7 @@ import { PurchaseInvoiceRepository } from '../../../infrastructure/persistence/t
 import { ProductRepository } from '../../../infrastructure/persistence/typeorm/repositories/product.repository';
 import { RegisterPurchaseDto } from './register-purchase.dto';
 import { AccountPayable } from '../../../domain/entities/account-payable.entity';
-import { AccountStatus } from '../../../domain/entities/account-receivable.entity';
+import { AccountStatusEnum } from '../../../domain/constants/domain.constants';
 import { WarehouseLocation, LocationType } from '../../../domain/entities/warehouse-location.entity';
 import { ProductBatch } from '../../../domain/entities/product-batch.entity';
 import { StockBalance } from '../../../domain/entities/stock-balance.entity';
@@ -46,15 +46,17 @@ export class RegisterPurchaseUseCase {
 
     // 3. Process transactional inserts/updates
     return this.dataSource.transaction(async (manager) => {
-      // Calculate total amount (respecting discount if specified)
+      // Calculate total amount (respecting discount and surcharge if specified)
       let subtotalAmountUsd = 0;
       for (const item of dto.items) {
         subtotalAmountUsd += item.quantity * item.unitCostUsd;
       }
 
       const discountPercentage = dto.discountPercentage || 0;
-      const discountAmountUsd = subtotalAmountUsd * (discountPercentage / 100);
-      const totalAmountUsd = subtotalAmountUsd - discountAmountUsd;
+      const discountAmountUsd = Number(((subtotalAmountUsd * discountPercentage) / 100).toFixed(2));
+      const surchargePercentage = dto.globalSurchargePercentage || 0;
+      const surchargeAmountUsd = Number(((subtotalAmountUsd * surchargePercentage) / 100).toFixed(2));
+      const totalAmountUsd = Number((subtotalAmountUsd - discountAmountUsd + surchargeAmountUsd).toFixed(2));
 
       // Save purchase invoice
       const invoice = await manager.save(PurchaseInvoice, new PurchaseInvoice({
@@ -69,21 +71,38 @@ export class RegisterPurchaseUseCase {
         discount_amount_usd: discountAmountUsd,
       }));
 
-      // If purchase is on credit (isCredit or paymentTermsDays > 0), register in Cuentas por Pagar (AccountPayable)
-      if (dto.isCredit || (dto.paymentTermsDays && dto.paymentTermsDays > 0)) {
+      // Determine credit condition & days
+      const isCreditTerm = dto.paymentTerm && dto.paymentTerm.startsWith('CREDITO');
+      const isCredit = Boolean(dto.isCredit || isCreditTerm || (dto.paymentTermsDays && dto.paymentTermsDays > 0));
+      let creditDays = dto.paymentTermsDays || 0;
+      if (isCreditTerm && !creditDays) {
+        const parts = dto.paymentTerm.split('_');
+        creditDays = parts[1] ? parseInt(parts[1], 10) : 30;
+      }
+      if (isCredit && !creditDays) {
+        creditDays = 30;
+      }
+
+      // If purchase is on credit, register in Cuentas por Pagar (AccountPayable)
+      if (isCredit) {
+        const refDate = dto.issueDate || new Date().toISOString().split('T')[0];
         await manager.save(AccountPayable, new AccountPayable({
           tenant_id: tenantId,
           provider_id: dto.providerId || undefined,
           provider_name: dto.supplierName.trim(),
           reference_document_id: invoice.id,
           reference_document_number: dto.invoiceNumber.trim(),
-          reference_date: new Date().toISOString().split('T')[0],
-          notes: `Compra a Crédito (${dto.paymentTermsDays || 30} días de plazo) - Factura #${dto.invoiceNumber.trim()}`,
+          reference_date: refDate,
+          supplier_invoice_number: dto.invoiceNumber.trim(),
+          voucher_attachment_url: dto.proofFilePath || undefined,
+          notes: dto.notes 
+            ? `${dto.notes} [Compra a Crédito (${creditDays} días) - Factura #${dto.invoiceNumber.trim()}]`
+            : `Compra a Crédito (${creditDays} días de plazo) - Factura #${dto.invoiceNumber.trim()}`,
           previous_balance: 0,
           period_amount: totalAmountUsd,
           total_paid: 0,
           balance_due: totalAmountUsd,
-          status: AccountStatus.PENDING,
+          status: AccountStatusEnum.PENDING,
           created_by_user_id: userId,
         }));
       }

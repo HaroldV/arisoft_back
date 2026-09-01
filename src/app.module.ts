@@ -128,6 +128,7 @@ import { CashShift } from './domain/entities/cash-shift.entity';
 import { CreatePurchaseOrderUseCase } from './application/use-cases/purchases/create-purchase-order.use-case';
 import { CreatePurchaseReceptionUseCase } from './application/use-cases/purchases/create-purchase-reception.use-case';
 import { CancelAndReplacePurchaseOrderUseCase } from './application/use-cases/purchases/cancel-and-replace-purchase-order.use-case';
+import { CancelPurchaseOrderUseCase } from './application/use-cases/purchases/cancel-purchase-order.use-case';
 import { BulkUpdatePricesUseCase } from './application/use-cases/inventory/bulk-update-prices.use-case';
 import { PurchasesController } from './presentation/web/controllers/purchases.controller';
 import { SuperAdminController } from './presentation/web/controllers/super-admin.controller';
@@ -251,6 +252,7 @@ import { DatabaseMigrationService } from './infrastructure/persistence/typeorm/s
     CreatePurchaseOrderUseCase,
     CreatePurchaseReceptionUseCase,
     CancelAndReplacePurchaseOrderUseCase,
+    CancelPurchaseOrderUseCase,
     BulkUpdatePricesUseCase,
     CreateCommercialDocumentUseCase,
     ConvertCommercialDocumentUseCase,

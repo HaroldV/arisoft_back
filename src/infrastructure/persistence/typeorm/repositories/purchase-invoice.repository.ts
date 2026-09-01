@@ -6,6 +6,8 @@ import { PurchaseInvoice } from '../../../../domain/entities/purchase-invoice.en
 import { User } from '../../../../domain/entities/user.entity';
 import { PurchaseItem } from '../../../../domain/entities/purchase-item.entity';
 import { Product } from '../../../../domain/entities/product.entity';
+import { AccountPayable } from '../../../../domain/entities/account-payable.entity';
+import { AccountStatusEnum, FINANCIAL_CONSTANTS } from '../../../../domain/constants/domain.constants';
 import { BaseTenantRepository } from './base-tenant.repository';
 
 @Injectable({ scope: Scope.REQUEST })
@@ -42,6 +44,7 @@ export class PurchaseInvoiceRepository extends BaseTenantRepository<PurchaseInvo
       .createQueryBuilder('invoice')
       .leftJoin(User, 'user', 'user.id = invoice.created_by_user_id')
       .leftJoin('purchase_fiscal_notes', 'note', 'note.original_invoice_id = invoice.id AND note.status = \'POSTED\'')
+      .leftJoin('accounts_payable', 'ap', 'ap.reference_document_id = invoice.id OR ap.reference_document_number = invoice.invoice_number OR ap.supplier_invoice_number = invoice.invoice_number')
       .select([
         'invoice.id AS id',
         'invoice.invoice_number AS invoice_number',
@@ -54,6 +57,10 @@ export class PurchaseInvoiceRepository extends BaseTenantRepository<PurchaseInvo
         'invoice.created_at AS created_at',
         'user.full_name AS creator_name',
         'user.email AS creator_email',
+        'ap.id AS payable_id',
+        'ap.status AS payable_status',
+        'ap.total_paid AS payable_total_paid',
+        'ap.balance_due AS payable_balance_due',
         "STRING_AGG(CASE WHEN note.type = 'CREDIT' THEN note.document_number || ':' || note.id ELSE NULL END, ',') AS credit_notes",
         "STRING_AGG(CASE WHEN note.type = 'DEBIT' THEN note.document_number || ':' || note.id ELSE NULL END, ',') AS debit_notes",
         "SUM(CASE WHEN note.type = 'CREDIT' THEN note.total_usd ELSE 0 END) AS total_credited_usd",
@@ -62,19 +69,54 @@ export class PurchaseInvoiceRepository extends BaseTenantRepository<PurchaseInvo
       .andWhere('invoice.deleted_at IS NULL')
       .groupBy('invoice.id')
       .addGroupBy('user.id')
+      .addGroupBy('ap.id')
+      .addGroupBy('ap.status')
+      .addGroupBy('ap.total_paid')
+      .addGroupBy('ap.balance_due')
       .orderBy('invoice.created_at', 'DESC')
       .getRawMany();
 
-    return rawResults.map(r => {
+    // Fetch standalone accounts payable that are not associated with a purchase_invoice record
+    const standalonePayables = await this.purchaseInvoiceRepository.manager
+      .createQueryBuilder(AccountPayable, 'ap')
+      .leftJoin(User, 'user', 'user.id = ap.created_by_user_id')
+      .where('ap.tenant_id = :tenantId', { tenantId: this.tenantId })
+      .andWhere('ap.reference_document_id IS NULL')
+      .orderBy('ap.created_at', 'DESC')
+      .select([
+        'ap.id AS id',
+        'ap.supplier_invoice_number AS supplier_invoice_number',
+        'ap.reference_document_number AS reference_document_number',
+        'ap.provider_name AS provider_name',
+        'ap.period_amount AS period_amount',
+        'ap.previous_balance AS previous_balance',
+        'ap.total_paid AS total_paid',
+        'ap.balance_due AS balance_due',
+        'ap.status AS status',
+        'ap.voucher_attachment_url AS voucher_attachment_url',
+        'ap.created_at AS created_at',
+        'ap.reference_date AS reference_date',
+        'user.id AS creator_id',
+        'user.full_name AS creator_name',
+        'user.email AS creator_email',
+      ])
+      .getRawMany();
+
+    const formattedInvoices = rawResults.map(r => {
       const totalAmountUsd = parseFloat(r.total_amount_usd);
-      const totalCreditedUsd = parseFloat(r.total_credited_usd || '0');
+      const totalCreditedUsd = parseFloat(r.total_credited_usd || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK);
       let calculatedStatus = 'PAGADA'; // default status
 
-      if (totalCreditedUsd >= totalAmountUsd - 0.01 && totalAmountUsd > 0) {
+      if (totalCreditedUsd >= totalAmountUsd - FINANCIAL_CONSTANTS.MIN_BALANCE_THRESHOLD && totalAmountUsd > 0) {
         calculatedStatus = 'ANULADA';
-      } else if (totalCreditedUsd > 0.01 || r.debit_notes) {
+      } else if (totalCreditedUsd > FINANCIAL_CONSTANTS.MIN_BALANCE_THRESHOLD || r.debit_notes) {
         calculatedStatus = 'AJUSTADA';
       }
+
+      // Resolve Financial Payment Status from Accounts Payable
+      let paymentStatus = r.payable_status || AccountStatusEnum.PAID;
+      const totalPaidUsd = r.payable_total_paid !== undefined && r.payable_total_paid !== null ? parseFloat(r.payable_total_paid) : totalAmountUsd;
+      const balanceDueUsd = r.payable_balance_due !== undefined && r.payable_balance_due !== null ? parseFloat(r.payable_balance_due) : 0.00;
 
       return {
         id: r.id,
@@ -86,6 +128,10 @@ export class PurchaseInvoiceRepository extends BaseTenantRepository<PurchaseInvo
         proof_file_path: r.proof_file_path,
         created_at: r.created_at,
         status: calculatedStatus,
+        payable_id: r.payable_id || null,
+        payment_status: paymentStatus,
+        total_paid_usd: totalPaidUsd,
+        balance_due_usd: balanceDueUsd,
         credit_notes: r.credit_notes || null,
         debit_notes: r.debit_notes || null,
         created_by: {
@@ -95,6 +141,41 @@ export class PurchaseInvoiceRepository extends BaseTenantRepository<PurchaseInvo
         },
       };
     });
+
+    const formattedStandalone = standalonePayables.map(ap => {
+      const totalAmountUsd = parseFloat(ap.period_amount || ap.previous_balance || ap.total_paid || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK);
+      const totalPaidUsd = parseFloat(ap.total_paid || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK);
+      const balanceDueUsd = parseFloat(ap.balance_due || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK);
+      const invoiceNumber = ap.supplier_invoice_number || ap.reference_document_number || `CXP-${ap.id.substring(0, 8).toUpperCase()}`;
+
+      return {
+        id: ap.id,
+        invoice_number: invoiceNumber,
+        supplier_name: ap.provider_name || 'Proveedor General',
+        total_amount_usd: totalAmountUsd,
+        discount_percentage: 0,
+        discount_amount_usd: 0,
+        proof_file_path: ap.voucher_attachment_url || null,
+        created_at: ap.created_at || ap.reference_date,
+        status: 'PAGADA',
+        payable_id: ap.id,
+        payment_status: ap.status || 'PAID',
+        total_paid_usd: totalPaidUsd,
+        balance_due_usd: balanceDueUsd,
+        credit_notes: null,
+        debit_notes: null,
+        created_by: {
+          id: ap.creator_id,
+          full_name: ap.creator_name || 'N/A',
+          email: ap.creator_email || 'N/A',
+        },
+      };
+    });
+
+    // Combine and sort by date descending
+    return [...formattedInvoices, ...formattedStandalone].sort((a, b) => {
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
   }
 
   async findPurchaseDetails(id: string): Promise<any | null> {
@@ -102,7 +183,45 @@ export class PurchaseInvoiceRepository extends BaseTenantRepository<PurchaseInvo
       where: this.enforceTenantCondition({ id }),
     });
 
-    if (!invoice) return null;
+    if (!invoice) {
+      // Check if this ID belongs to a standalone AccountPayable
+      const standalone = await this.purchaseInvoiceRepository.manager.findOne(AccountPayable, {
+        where: { id, tenant_id: this.tenantId },
+        relations: ['payments'],
+      });
+
+      if (!standalone) return null;
+
+      const creator = standalone.created_by_user_id
+        ? await this.purchaseInvoiceRepository.manager.findOne(User, {
+            where: { id: standalone.created_by_user_id },
+          })
+        : null;
+
+      const totalAmountUsd = parseFloat(standalone.period_amount as any || standalone.previous_balance as any || standalone.total_paid as any || '0');
+      const invoiceNumber = standalone.supplier_invoice_number || standalone.reference_document_number || `CXP-${standalone.id.substring(0, 8).toUpperCase()}`;
+
+      return {
+        id: standalone.id,
+        invoice_number: invoiceNumber,
+        supplier_name: standalone.provider_name || 'Proveedor General',
+        total_amount_usd: totalAmountUsd,
+        discount_percentage: 0,
+        discount_amount_usd: 0,
+        proof_file_path: standalone.voucher_attachment_url || null,
+        created_at: standalone.created_at || standalone.reference_date,
+        payable_id: standalone.id,
+        payment_status: standalone.status || 'PAID',
+        total_paid_usd: parseFloat(standalone.total_paid as any || '0'),
+        balance_due_usd: parseFloat(standalone.balance_due as any || '0'),
+        created_by: {
+          id: standalone.created_by_user_id || 'N/A',
+          full_name: creator?.full_name || standalone.created_by_user_name || 'N/A',
+          email: creator?.email || 'N/A',
+        },
+        items: [],
+      };
+    }
 
     const creator = await this.purchaseInvoiceRepository.manager.findOne(User, {
       where: { id: invoice.created_by_user_id },
@@ -123,6 +242,15 @@ export class PurchaseInvoiceRepository extends BaseTenantRepository<PurchaseInvo
       .andWhere('item.deleted_at IS NULL')
       .getRawMany();
 
+    const payable = await this.purchaseInvoiceRepository.manager
+      .createQueryBuilder(AccountPayable, 'ap')
+      .where('(ap.reference_document_id = :id OR ap.reference_document_number = :invoiceNumber)', {
+        id: invoice.id,
+        invoiceNumber: invoice.invoice_number,
+      })
+      .andWhere('ap.tenant_id = :tenantId', { tenantId: this.tenantId })
+      .getOne();
+
     return {
       id: invoice.id,
       invoice_number: invoice.invoice_number,
@@ -132,6 +260,10 @@ export class PurchaseInvoiceRepository extends BaseTenantRepository<PurchaseInvo
       discount_amount_usd: invoice.discount_amount_usd ? parseFloat(invoice.discount_amount_usd as any) : 0,
       proof_file_path: invoice.proof_file_path,
       created_at: invoice.created_at,
+      payable_id: payable?.id || null,
+      payment_status: payable?.status || 'PAID',
+      total_paid_usd: payable ? parseFloat(payable.total_paid as any) : parseFloat(invoice.total_amount_usd as any),
+      balance_due_usd: payable ? parseFloat(payable.balance_due as any) : 0.00,
       created_by: {
         id: invoice.created_by_user_id,
         full_name: creator?.full_name || 'N/A',
