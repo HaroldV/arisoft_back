@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Delete, Body, Param, Query, Headers, UseGuards, Req, ForbiddenException, BadRequestException, NotFoundException, ParseArrayPipe } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Put, Delete, Body, Param, Query, Headers, UseGuards, Req, ForbiddenException, BadRequestException, NotFoundException, ParseArrayPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiHeader, ApiBody, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { isUUID } from 'class-validator';
 import { BulkUploadProductsUseCase } from '../../../application/use-cases/inventory/bulk-upload-products.use-case';
@@ -239,10 +239,35 @@ export class InventoryController {
     return this.registerPurchaseUseCase.execute(tenantId, userId, dto);
   }
 
+  @Put('products/:id')
+  @RequiredModules(AppModule.INVENTORY)
+  @RequiredPermissions('inventory:write')
+  @ApiOperation({ summary: 'Update a product with PUT (respecting lifecycle rules)' })
+  @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier' })
+  @ApiBody({ type: UpdateProductDto, description: 'Datos parciales del producto a actualizar' })
+  async updateProductPut(
+    @Param('id') id: string,
+    @Headers('x-tenant-id') tenantId: string,
+    @Body() dto: UpdateProductDto,
+    @Req() req: any,
+  ) {
+    if (!tenantId || !isUUID(tenantId)) {
+      throw new BadRequestException('x-tenant-id must be a valid UUID');
+    }
+    if (tenantId !== req.user.tenant_id) {
+      throw new ForbiddenException('Tenant ID does not match authenticated session');
+    }
+    if (!id || !isUUID(id)) {
+      throw new BadRequestException('Product ID must be a valid UUID');
+    }
+    const user = { id: req.user.sub || req.user.userId, name: req.user.full_name || req.user.email };
+    return this.updateProductUseCase.execute(id, dto, user);
+  }
+
   @Patch('products/:id')
   @RequiredModules(AppModule.INVENTORY)
   @RequiredPermissions('inventory:write')
-  @ApiOperation({ summary: 'Update a product (respecting lifecycle rules)' })
+  @ApiOperation({ summary: 'Update a product with PATCH (respecting lifecycle rules)' })
   @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier' })
   @ApiBody({ type: UpdateProductDto, description: 'Datos parciales del producto a actualizar' })
   async updateProduct(
@@ -260,7 +285,8 @@ export class InventoryController {
     if (!id || !isUUID(id)) {
       throw new BadRequestException('Product ID must be a valid UUID');
     }
-    return this.updateProductUseCase.execute(id, dto);
+    const user = { id: req.user.sub || req.user.userId, name: req.user.full_name || req.user.email };
+    return this.updateProductUseCase.execute(id, dto, user);
   }
 
   @Delete('products/:id')

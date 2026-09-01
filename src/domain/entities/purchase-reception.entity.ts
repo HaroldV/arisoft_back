@@ -59,6 +59,15 @@ export class PurchaseReceptionNote {
   @Column({ name: 'created_by_user_name', type: 'varchar', length: 255, nullable: true })
   created_by_user_name?: string;
 
+  @Column({ name: 'reversal_reason', type: 'text', nullable: true })
+  reversal_reason?: string;
+
+  @Column({ name: 'reversed_at', type: 'timestamp with time zone', nullable: true })
+  reversed_at?: Date;
+
+  @Column({ name: 'reversed_by_user_id', type: 'uuid', nullable: true })
+  reversed_by_user_id?: string;
+
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;
 

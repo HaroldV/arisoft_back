@@ -16,6 +16,7 @@ describe('AccountsController (Unit & Integration Tests)', () => {
     mockReceivableRepo = {
       findAccountsByTenant: jest.fn().mockResolvedValue([{ id: 'r-1', client_name: 'Cliente A' }]),
       calculateSummaryKPIs: jest.fn().mockResolvedValue({ totalDebtUSD: 100 }),
+      getPendingSummary: jest.fn().mockResolvedValue({ count: 2, total_balance_due: 150.0 }),
       save: jest.fn((item) => Promise.resolve({ id: 'r-new', ...item })),
       findByIdAndTenant: jest.fn().mockResolvedValue({ id: 'r-1', total_debt_usd: 100, total_paid_usd: 0, status: 'PENDING' }),
     };
@@ -23,6 +24,7 @@ describe('AccountsController (Unit & Integration Tests)', () => {
     mockPayableRepo = {
       findAccountsByTenant: jest.fn().mockResolvedValue([{ id: 'p-1', provider_name: 'Proveedor B' }]),
       calculateSummaryKPIs: jest.fn().mockResolvedValue({ totalDebtUSD: 200 }),
+      getPendingSummary: jest.fn().mockResolvedValue({ count: 3, total_balance_due: 350.0 }),
       save: jest.fn((item) => Promise.resolve({ id: 'p-new', ...item })),
       findByIdAndTenant: jest.fn().mockResolvedValue({ id: 'p-1', total_debt_usd: 200, total_paid_usd: 0, status: 'PENDING' }),
       findAccountWithPayments: jest.fn().mockResolvedValue({ id: 'p-1', total_paid: 0, balance_due: 200, status: 'PENDING' }),
@@ -55,6 +57,18 @@ describe('AccountsController (Unit & Integration Tests)', () => {
     });
   });
 
+  describe('GET /accounts/badges/summary', () => {
+    it('should return pending badges summary for CxC and CxP', async () => {
+      const res = await controller.getHeaderBadges(validTenantId, mockReq);
+      expect(res).toEqual({
+        cxc: { count: 2, total_balance_due: 150.0 },
+        cxp: { count: 3, total_balance_due: 350.0 },
+      });
+      expect(mockReceivableRepo.getPendingSummary).toHaveBeenCalledWith(validTenantId);
+      expect(mockPayableRepo.getPendingSummary).toHaveBeenCalledWith(validTenantId);
+    });
+  });
+
   describe('GET /accounts/receivables', () => {
     it('should return CxC list and KPIs', async () => {
       const res = await controller.getReceivables(validTenantId, 'search-term', mockReq);
@@ -77,6 +91,35 @@ describe('AccountsController (Unit & Integration Tests)', () => {
       const res = await controller.createReceivable(validTenantId, dto as any, mockReq);
       expect(mockReceivableRepo.save).toHaveBeenCalled();
       expect(res).toHaveProperty('id', 'r-new');
+    });
+  });
+
+  describe('POST /accounts/receivables/:id/payments', () => {
+    it('should successfully register a payment for CxC', async () => {
+      const mockReceivable = {
+        id: 'r-123',
+        tenant_id: validTenantId,
+        client_name: 'Cliente ABC',
+        total_paid: 0,
+        balance_due: 100,
+        status: 'PENDING',
+      };
+
+      mockReceivableRepo.findAccountWithPayments = jest.fn().mockResolvedValue(mockReceivable);
+      mockReceivableRepo.save.mockImplementation((acc: any) => Promise.resolve(acc));
+
+      const payload = {
+        payment_method: 'CASH_USD',
+        amount: 50,
+        exchange_rate: 1,
+        reference_number: 'REF-001',
+      };
+
+      const res = await controller.registerReceivablePayment(validTenantId, 'r-123', payload, mockReq);
+      expect(res.total_paid).toBe(50);
+      expect(res.balance_due).toBe(50);
+      expect(res.status).toBe('PARTIAL');
+      expect(res.payments).toHaveLength(1);
     });
   });
 

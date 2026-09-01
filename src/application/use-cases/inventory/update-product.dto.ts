@@ -48,6 +48,11 @@ export class UpdateProductDto {
   @Min(0)
   costUsd?: number;
 
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  cost_usd?: number;
+
   @ApiPropertyOptional({
     description: 'Precio de venta al público en USD',
     example: 2.70,
@@ -57,6 +62,11 @@ export class UpdateProductDto {
   @IsNumber()
   @Min(0)
   priceUsd?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  price_usd?: number;
 
   @ApiPropertyOptional({
     description: 'Tasa de impuesto (porcentaje de 0 a 100)',
@@ -70,6 +80,12 @@ export class UpdateProductDto {
   @Max(100)
   taxRate?: number;
 
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  tax_rate?: number;
+
   @ApiPropertyOptional({
     description: 'Unidad de medida a actualizar',
     example: 'kg',
@@ -77,6 +93,10 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   unitOfMeasure?: string;
+
+  @IsOptional()
+  @IsString()
+  unit_of_measure?: string;
 
   @ApiPropertyOptional({
     description: 'Categoría a actualizar (Nombre)',
@@ -94,6 +114,10 @@ export class UpdateProductDto {
   @IsString()
   categoryId?: string;
 
+  @IsOptional()
+  @IsString()
+  category_id?: string;
+
   @ApiPropertyOptional({
     description: 'Variaciones del producto',
   })
@@ -107,6 +131,9 @@ export class UpdateProductDto {
   @IsOptional()
   advancedFields?: any;
 
+  @IsOptional()
+  advanced_fields?: any;
+
   @ApiPropertyOptional({
     description: 'Tipo de impuesto a actualizar (TAXABLE, EXEMPT, EXONERATED)',
     example: 'TAXABLE',
@@ -115,6 +142,10 @@ export class UpdateProductDto {
   @IsString()
   taxType?: string;
 
+  @IsOptional()
+  @IsString()
+  tax_type?: string;
+
   @ApiPropertyOptional({
      description: 'Indica si el producto es perecedero',
      example: false,
@@ -122,10 +153,16 @@ export class UpdateProductDto {
   @IsOptional()
   isPerishable?: boolean;
 
+  @IsOptional()
+  is_perishable?: boolean;
+
   @ApiPropertyOptional({
      description: 'Indica si el producto tiene control de lotes',
      example: false,
   })
   @IsOptional()
   hasBatchControl?: boolean;
+
+  @IsOptional()
+  has_batch_control?: boolean;
 }

@@ -34,6 +34,7 @@ export class AccountReceivableRepository {
 
   async findAccountsByTenant(tenantId: string, search?: string): Promise<AccountReceivable[]> {
     const qb = this.repository.createQueryBuilder('acc')
+      .leftJoinAndSelect('acc.payments', 'payments')
       .where('acc.tenant_id = :tenantId', { tenantId })
       .orderBy('acc.created_at', 'DESC');
 
@@ -64,6 +65,21 @@ export class AccountReceivableRepository {
       total_previous_balance: parseFloat(result?.total_previous_balance || '0'),
       total_period_amount: parseFloat(result?.total_period_amount || '0'),
       total_paid: parseFloat(result?.total_paid || '0'),
+      total_balance_due: parseFloat(result?.total_balance_due || '0'),
+    };
+  }
+
+  async getPendingSummary(tenantId: string): Promise<{ count: number; total_balance_due: number }> {
+    const result = await this.repository.createQueryBuilder('acc')
+      .select('COUNT(acc.id)', 'count')
+      .addSelect('SUM(acc.balance_due)', 'total_balance_due')
+      .where('acc.tenant_id = :tenantId', { tenantId })
+      .andWhere('acc.status != :paidStatus', { paidStatus: 'PAID' })
+      .andWhere('acc.balance_due > 0.01')
+      .getRawOne();
+
+    return {
+      count: parseInt(result?.count || '0', 10),
       total_balance_due: parseFloat(result?.total_balance_due || '0'),
     };
   }

@@ -49,18 +49,28 @@ export class UpdateProductUseCase {
     if (dto.imageUrl !== undefined || dto.image_url !== undefined) {
       product.image_url = dto.imageUrl || dto.image_url || undefined;
     }
-    if (dto.costUsd !== undefined) product.cost_usd = dto.costUsd;
-    if (dto.priceUsd !== undefined) product.price_usd = dto.priceUsd;
-    if (dto.taxRate !== undefined) product.tax_rate = dto.taxRate;
-    if (dto.unitOfMeasure !== undefined) product.unit_of_measure = dto.unitOfMeasure;
-    if (dto.categoryId !== undefined) {
-      product.category_id = dto.categoryId || null;
+    if (dto.costUsd !== undefined || dto.cost_usd !== undefined) {
+      product.cost_usd = dto.costUsd ?? dto.cost_usd;
+    }
+    if (dto.priceUsd !== undefined || dto.price_usd !== undefined) {
+      product.price_usd = dto.priceUsd ?? dto.price_usd;
+    }
+    if (dto.taxRate !== undefined || dto.tax_rate !== undefined) {
+      product.tax_rate = dto.taxRate ?? dto.tax_rate;
+    }
+    if (dto.unitOfMeasure !== undefined || dto.unit_of_measure !== undefined) {
+      product.unit_of_measure = dto.unitOfMeasure ?? dto.unit_of_measure;
+    }
+    if (dto.categoryId !== undefined || dto.category_id !== undefined) {
+      product.category_id = dto.categoryId || dto.category_id || null;
     } else if (dto.category !== undefined) {
       const cat = await this.categoryRepo.findOrCreateByName(dto.category);
       product.category_id = cat.id;
     }
     if (dto.variations !== undefined) product.variations = dto.variations;
-    if (dto.advancedFields !== undefined) product.advanced_fields = dto.advancedFields;
+    if (dto.advancedFields !== undefined || dto.advanced_fields !== undefined) {
+      product.advanced_fields = dto.advancedFields || dto.advanced_fields;
+    }
 
     if (user) {
       product.updated_by_user_id = user.id;

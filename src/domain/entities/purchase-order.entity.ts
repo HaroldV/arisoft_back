@@ -70,6 +70,15 @@ export class PurchaseOrder {
   @Column({ name: 'created_by_user_name', type: 'varchar', length: 255, nullable: true })
   created_by_user_name?: string;
 
+  @Column({ name: 'cancellation_reason', type: 'text', nullable: true })
+  cancellation_reason?: string;
+
+  @Column({ name: 'cancelled_at', type: 'timestamp with time zone', nullable: true })
+  cancelled_at?: Date;
+
+  @Column({ name: 'cancelled_by_user_id', type: 'uuid', nullable: true })
+  cancelled_by_user_id?: string;
+
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;
 
