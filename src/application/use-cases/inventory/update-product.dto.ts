@@ -1,5 +1,6 @@
-import { IsOptional, IsString, IsNumber, Min, Max, IsArray } from 'class-validator';
+import { IsOptional, IsString, IsNumber, Min, Max, IsArray, IsBoolean } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 
 export class UpdateProductDto {
   @ApiPropertyOptional({
@@ -32,11 +33,8 @@ export class UpdateProductDto {
   })
   @IsOptional()
   @IsString()
+  @Transform(({ value, obj }) => value ?? obj.image_url)
   imageUrl?: string;
-
-  @IsOptional()
-  @IsString()
-  image_url?: string;
 
   @ApiPropertyOptional({
     description: 'Costo unitario de adquisición en USD',
@@ -46,12 +44,8 @@ export class UpdateProductDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Transform(({ value, obj }) => (value !== undefined ? Number(value) : (obj.cost_usd !== undefined ? Number(obj.cost_usd) : undefined)))
   costUsd?: number;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  cost_usd?: number;
 
   @ApiPropertyOptional({
     description: 'Precio de venta al público en USD',
@@ -61,12 +55,8 @@ export class UpdateProductDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Transform(({ value, obj }) => (value !== undefined ? Number(value) : (obj.price_usd !== undefined ? Number(obj.price_usd) : undefined)))
   priceUsd?: number;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  price_usd?: number;
 
   @ApiPropertyOptional({
     description: 'Tasa de impuesto (porcentaje de 0 a 100)',
@@ -78,13 +68,8 @@ export class UpdateProductDto {
   @IsNumber()
   @Min(0)
   @Max(100)
+  @Transform(({ value, obj }) => (value !== undefined ? Number(value) : (obj.tax_rate !== undefined ? Number(obj.tax_rate) : undefined)))
   taxRate?: number;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(100)
-  tax_rate?: number;
 
   @ApiPropertyOptional({
     description: 'Unidad de medida a actualizar',
@@ -92,11 +77,8 @@ export class UpdateProductDto {
   })
   @IsOptional()
   @IsString()
+  @Transform(({ value, obj }) => value ?? obj.unit_of_measure)
   unitOfMeasure?: string;
-
-  @IsOptional()
-  @IsString()
-  unit_of_measure?: string;
 
   @ApiPropertyOptional({
     description: 'Categoría a actualizar (Nombre)',
@@ -112,11 +94,8 @@ export class UpdateProductDto {
   })
   @IsOptional()
   @IsString()
+  @Transform(({ value, obj }) => value ?? obj.category_id)
   categoryId?: string;
-
-  @IsOptional()
-  @IsString()
-  category_id?: string;
 
   @ApiPropertyOptional({
     description: 'Variaciones del producto',
@@ -129,10 +108,8 @@ export class UpdateProductDto {
     description: 'Campos avanzados estructurados',
   })
   @IsOptional()
+  @Transform(({ value, obj }) => value ?? obj.advanced_fields)
   advancedFields?: any;
-
-  @IsOptional()
-  advanced_fields?: any;
 
   @ApiPropertyOptional({
     description: 'Tipo de impuesto a actualizar (TAXABLE, EXEMPT, EXONERATED)',
@@ -140,29 +117,24 @@ export class UpdateProductDto {
   })
   @IsOptional()
   @IsString()
+  @Transform(({ value, obj }) => value ?? obj.tax_type)
   taxType?: string;
-
-  @IsOptional()
-  @IsString()
-  tax_type?: string;
 
   @ApiPropertyOptional({
      description: 'Indica si el producto es perecedero',
      example: false,
   })
   @IsOptional()
+  @IsBoolean()
+  @Transform(({ value, obj }) => value ?? obj.is_perishable)
   isPerishable?: boolean;
-
-  @IsOptional()
-  is_perishable?: boolean;
 
   @ApiPropertyOptional({
      description: 'Indica si el producto tiene control de lotes',
      example: false,
   })
   @IsOptional()
+  @IsBoolean()
+  @Transform(({ value, obj }) => value ?? obj.has_batch_control)
   hasBatchControl?: boolean;
-
-  @IsOptional()
-  has_batch_control?: boolean;
 }

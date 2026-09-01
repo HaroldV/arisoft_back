@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PurchaseOrder } from '../../../domain/entities/purchase-order.entity';
 import { PurchaseReceptionNote } from '../../../domain/entities/purchase-reception.entity';
+import { PurchaseOrderStatusEnum } from '../../../domain/constants/domain.constants';
 
 export interface CancelPurchaseOrderDto {
   reason: string;
@@ -37,7 +38,7 @@ export class CancelPurchaseOrderUseCase {
       throw new NotFoundException(`La Orden de Compra con ID ${orderId} no existe`);
     }
 
-    if (order.status === 'CANCELLED') {
+    if (order.status === PurchaseOrderStatusEnum.CANCELLED) {
       throw new BadRequestException(`La Orden de Compra ${order.order_number} ya se encuentra anulada`);
     }
 
@@ -46,14 +47,14 @@ export class CancelPurchaseOrderUseCase {
       where: { order_id: order.id, tenant_id: tenantId },
     });
 
-    const activeReceptions = receptions.filter(r => r.status !== 'CANCELLED');
+    const activeReceptions = receptions.filter(r => r.status !== PurchaseOrderStatusEnum.CANCELLED);
     if (activeReceptions.length > 0) {
       throw new BadRequestException(
         `No se puede anular la orden ${order.order_number} porque ya posee recepciones de almacén registradas.`
       );
     }
 
-    order.status = 'CANCELLED';
+    order.status = PurchaseOrderStatusEnum.CANCELLED;
     order.cancellation_reason = dto.reason.trim();
     order.cancelled_at = new Date();
     order.cancelled_by_user_id = userId;

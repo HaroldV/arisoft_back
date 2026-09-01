@@ -7,6 +7,7 @@ import { User } from '../../../../domain/entities/user.entity';
 import { PurchaseItem } from '../../../../domain/entities/purchase-item.entity';
 import { Product } from '../../../../domain/entities/product.entity';
 import { AccountPayable } from '../../../../domain/entities/account-payable.entity';
+import { AccountStatusEnum, FINANCIAL_CONSTANTS } from '../../../../domain/constants/domain.constants';
 import { BaseTenantRepository } from './base-tenant.repository';
 
 @Injectable({ scope: Scope.REQUEST })
@@ -103,17 +104,17 @@ export class PurchaseInvoiceRepository extends BaseTenantRepository<PurchaseInvo
 
     const formattedInvoices = rawResults.map(r => {
       const totalAmountUsd = parseFloat(r.total_amount_usd);
-      const totalCreditedUsd = parseFloat(r.total_credited_usd || '0');
+      const totalCreditedUsd = parseFloat(r.total_credited_usd || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK);
       let calculatedStatus = 'PAGADA'; // default status
 
-      if (totalCreditedUsd >= totalAmountUsd - 0.01 && totalAmountUsd > 0) {
+      if (totalCreditedUsd >= totalAmountUsd - FINANCIAL_CONSTANTS.MIN_BALANCE_THRESHOLD && totalAmountUsd > 0) {
         calculatedStatus = 'ANULADA';
-      } else if (totalCreditedUsd > 0.01 || r.debit_notes) {
+      } else if (totalCreditedUsd > FINANCIAL_CONSTANTS.MIN_BALANCE_THRESHOLD || r.debit_notes) {
         calculatedStatus = 'AJUSTADA';
       }
 
       // Resolve Financial Payment Status from Accounts Payable
-      let paymentStatus = r.payable_status || 'PAID';
+      let paymentStatus = r.payable_status || AccountStatusEnum.PAID;
       const totalPaidUsd = r.payable_total_paid !== undefined && r.payable_total_paid !== null ? parseFloat(r.payable_total_paid) : totalAmountUsd;
       const balanceDueUsd = r.payable_balance_due !== undefined && r.payable_balance_due !== null ? parseFloat(r.payable_balance_due) : 0.00;
 
@@ -142,9 +143,9 @@ export class PurchaseInvoiceRepository extends BaseTenantRepository<PurchaseInvo
     });
 
     const formattedStandalone = standalonePayables.map(ap => {
-      const totalAmountUsd = parseFloat(ap.period_amount || ap.previous_balance || ap.total_paid || '0');
-      const totalPaidUsd = parseFloat(ap.total_paid || '0');
-      const balanceDueUsd = parseFloat(ap.balance_due || '0');
+      const totalAmountUsd = parseFloat(ap.period_amount || ap.previous_balance || ap.total_paid || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK);
+      const totalPaidUsd = parseFloat(ap.total_paid || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK);
+      const balanceDueUsd = parseFloat(ap.balance_due || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK);
       const invoiceNumber = ap.supplier_invoice_number || ap.reference_document_number || `CXP-${ap.id.substring(0, 8).toUpperCase()}`;
 
       return {

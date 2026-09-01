@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AccountPayable } from '../../../../domain/entities/account-payable.entity';
+import { AccountStatusEnum, FINANCIAL_CONSTANTS } from '../../../../domain/constants/domain.constants';
 
 @Injectable()
 export class AccountPayableRepository {
@@ -62,10 +63,10 @@ export class AccountPayableRepository {
       .getRawOne();
 
     return {
-      total_previous_balance: parseFloat(result?.total_previous_balance || '0'),
-      total_period_amount: parseFloat(result?.total_period_amount || '0'),
-      total_paid: parseFloat(result?.total_paid || '0'),
-      total_balance_due: parseFloat(result?.total_balance_due || '0'),
+      total_previous_balance: parseFloat(result?.total_previous_balance || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK),
+      total_period_amount: parseFloat(result?.total_period_amount || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK),
+      total_paid: parseFloat(result?.total_paid || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK),
+      total_balance_due: parseFloat(result?.total_balance_due || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK),
     };
   }
 
@@ -74,13 +75,13 @@ export class AccountPayableRepository {
       .select('COUNT(acc.id)', 'count')
       .addSelect('SUM(acc.balance_due)', 'total_balance_due')
       .where('acc.tenant_id = :tenantId', { tenantId })
-      .andWhere('acc.status != :paidStatus', { paidStatus: 'PAID' })
-      .andWhere('acc.balance_due > 0.01')
+      .andWhere('acc.status != :paidStatus', { paidStatus: AccountStatusEnum.PAID })
+      .andWhere('acc.balance_due > :minBalance', { minBalance: FINANCIAL_CONSTANTS.MIN_BALANCE_THRESHOLD })
       .getRawOne();
 
     return {
-      count: parseInt(result?.count || '0', 10),
-      total_balance_due: parseFloat(result?.total_balance_due || '0'),
+      count: parseInt(result?.count || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK, 10),
+      total_balance_due: parseFloat(result?.total_balance_due || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK),
     };
   }
 

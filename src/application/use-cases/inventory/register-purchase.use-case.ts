@@ -8,7 +8,7 @@ import { PurchaseInvoiceRepository } from '../../../infrastructure/persistence/t
 import { ProductRepository } from '../../../infrastructure/persistence/typeorm/repositories/product.repository';
 import { RegisterPurchaseDto } from './register-purchase.dto';
 import { AccountPayable } from '../../../domain/entities/account-payable.entity';
-import { AccountStatus } from '../../../domain/entities/account-receivable.entity';
+import { AccountStatusEnum } from '../../../domain/constants/domain.constants';
 import { WarehouseLocation, LocationType } from '../../../domain/entities/warehouse-location.entity';
 import { ProductBatch } from '../../../domain/entities/product-batch.entity';
 import { StockBalance } from '../../../domain/entities/stock-balance.entity';
@@ -102,7 +102,7 @@ export class RegisterPurchaseUseCase {
           period_amount: totalAmountUsd,
           total_paid: 0,
           balance_due: totalAmountUsd,
-          status: AccountStatus.PENDING,
+          status: AccountStatusEnum.PENDING,
           created_by_user_id: userId,
         }));
       }
