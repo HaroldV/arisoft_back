@@ -1,4 +1,6 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Branch } from './branch.entity';
+import { User } from './user.entity';
 
 @Entity('cash_shifts')
 export class CashShift {
@@ -10,6 +12,17 @@ export class CashShift {
 
   @Column({ type: 'uuid' })
   cashier_id: string;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'cashier_id' })
+  cashier?: User;
+
+  @Column({ type: 'uuid', nullable: true })
+  branch_id?: string;
+
+  @ManyToOne(() => Branch)
+  @JoinColumn({ name: 'branch_id' })
+  branch?: Branch;
 
   @Column({ type: 'varchar', default: 'OPEN' })
   status: string;

@@ -75,6 +75,13 @@ export class Product {
   updated_by_user_name?: string;
 
   current_stock?: number;
+  global_stock?: number;
+  warehouse_stocks?: {
+    warehouse_id: string;
+    warehouse_name: string;
+    branch_name?: string;
+    stock: number;
+  }[];
 
   // CamelCase properties for frontend serialization compatibility
   costUsd?: number;

@@ -113,6 +113,9 @@ export class LoginUseCase {
       'providers:manage': 'INVENTORY_PURCHASES',
       'inventory:create': 'INVENTORY',
       'inventory:stock': 'INVENTORY',
+      'inventory:view': 'INVENTORY',
+      'inventory:write': 'INVENTORY',
+      'inventory:adjust': 'INVENTORY',
       'inventory:bulk_prices': 'INVENTORY',
       'inventory:valuation': 'INVENTORY',
       'inventory:warehouse': 'INVENTORY',
@@ -127,6 +130,7 @@ export class LoginUseCase {
       'company:manage': 'SETTINGS',
       'fiscal:manage': 'SETTINGS',
       'users:manage': 'SETTINGS',
+      'branches:manage': 'SETTINGS',
     };
 
     // SUPER_ADMIN gets unrestricted access to all platform modules

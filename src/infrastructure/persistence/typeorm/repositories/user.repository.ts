@@ -17,13 +17,17 @@ export class UserRepository implements IUserRepository {
       where: { email: cleanEmail },
       select: [
         'id', 'tenant_id', 'full_name', 'email', 'password_hash', 
-        'role', 'role_id', 'is_active', 'created_at', 'updated_at', 'creator_id', 'allowed_modules', 'allowed_permissions', 'failed_login_attempts', 'is_temporary_password'
+        'role', 'role_id', 'branch_id', 'is_active', 'created_at', 'updated_at', 'creator_id', 'allowed_modules', 'allowed_permissions', 'failed_login_attempts', 'is_temporary_password'
       ],
+      relations: ['branch', 'branch.default_warehouse'],
     });
   }
 
   async findById(id: string): Promise<User | null> {
-    return this.userRepository.findOne({ where: { id } });
+    return this.userRepository.findOne({
+      where: { id },
+      relations: ['branch', 'branch.default_warehouse'],
+    });
   }
 
   async save(user: User): Promise<User> {
@@ -33,6 +37,7 @@ export class UserRepository implements IUserRepository {
   async findAllByTenant(tenantId: string): Promise<User[]> {
     return this.userRepository.find({
       where: { tenant_id: tenantId },
+      relations: ['branch', 'branch.default_warehouse'],
       order: { created_at: 'ASC' },
     });
   }

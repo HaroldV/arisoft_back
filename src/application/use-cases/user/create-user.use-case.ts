@@ -127,15 +127,17 @@ export class CreateUserUseCase {
 
     // Limits of creator's permissions
     const creatorAllowedPermissions = creator.role === UserRole.OWNER
-      ? tenantPermissions
-      : creator.permissions || [];
+      ? Array.from(new Set([...defaultPlanPermissions, ...(tenant.settings?.enabled_permissions || [])]))
+      : (creator.permissions || []);
 
-    // Verify all requested permissions are within creator limits
-    const invalidPermissions = dto.allowed_permissions.filter(perm => !creatorAllowedPermissions.includes(perm));
-    if (invalidPermissions.length > 0) {
-      throw new BadRequestException(
-        `Cannot delegate access to permissions: ${invalidPermissions.join(', ')}. You do not have access to these permissions.`
-      );
+    // Verify all requested permissions are within creator limits (OWNER can delegate all plan permissions)
+    if (creator.role !== UserRole.OWNER) {
+      const invalidPermissions = dto.allowed_permissions.filter(perm => !creatorAllowedPermissions.includes(perm));
+      if (invalidPermissions.length > 0) {
+        throw new BadRequestException(
+          `Cannot delegate access to permissions: ${invalidPermissions.join(', ')}. You do not have access to these permissions.`
+        );
+      }
     }
 
     // 5. Hash password
@@ -149,6 +151,7 @@ export class CreateUserUseCase {
       password_hash: passwordHash,
       role: dto.role,
       role_id: dto.role_id || null,
+      branch_id: dto.branch_id || null,
       creator_id: creator.id,
       allowed_modules: dto.allowed_modules,
       allowed_permissions: dto.allowed_permissions,

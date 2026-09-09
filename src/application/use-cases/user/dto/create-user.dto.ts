@@ -57,6 +57,15 @@ export class CreateUserDto {
   allowed_modules: AppModule[];
 
   @ApiProperty({
+    description: 'ID de la sucursal física asignada al usuario',
+    example: 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  branch_id?: string;
+
+  @ApiProperty({
     description: 'Lista de permisos granulares autorizados para el usuario',
     isArray: true,
     example: ['pos:create', 'clients:manage'],

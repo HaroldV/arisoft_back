@@ -10,7 +10,7 @@ export class BcvCronService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly exchangeRateService: ExchangeRateService) {}
 
   onModuleInit() {
-    this.logger.log('🚀 Initializing BCV Cron Scheduler (08:30 AM & 05:30 PM VET)...');
+    this.logger.log('🚀 Initializing BCV Cron Scheduler (00:30 AM, 06:00 AM, 08:30 AM & 05:30 PM VET)...');
     // Revisión periódica cada 60 segundos
     this.timer = setInterval(() => this.checkScheduleAndExecute(), 60 * 1000);
     // Ejecutar una verificación inicial diferida (10 segundos tras inicio)
@@ -47,12 +47,16 @@ export class BcvCronService implements OnModuleInit, OnModuleDestroy {
 
     const isBusinessDay = !['Sat', 'Sun'].includes(weekday);
 
-    // Slot 1: 08:30 AM (Mañana)
+    // Slot 1: 00:30 AM (Madrugada / Inicio de jornada)
+    const isMidnightSlot = isBusinessDay && hour === 0 && minute === 30;
+    // Slot 2: 06:00 AM (Mañana Temprana / Apertura previa a cajas)
+    const isEarlyMorningSlot = isBusinessDay && hour === 6 && minute === 0;
+    // Slot 3: 08:30 AM (Mañana bancaria)
     const isMorningSlot = isBusinessDay && hour === 8 && minute === 30;
-    // Slot 2: 05:30 PM (Tarde)
+    // Slot 4: 05:30 PM (Tarde / Cierre bancario y tasa valor día siguiente)
     const isEveningSlot = isBusinessDay && hour === 17 && minute === 30;
 
-    if (isMorningSlot || isEveningSlot || (isStartup && this.shouldRunStartupCatchup())) {
+    if (isMidnightSlot || isEarlyMorningSlot || isMorningSlot || isEveningSlot || (isStartup && this.shouldRunStartupCatchup())) {
       const slot = isEveningSlot ? 'EVENING' : 'MORNING';
       await this.runScheduledSync(slot);
     }

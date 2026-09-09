@@ -1,12 +1,15 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Inject } from '@nestjs/common';
 import { CashShift } from '../../../domain/entities/cash-shift.entity';
 import { CashShiftRepository } from '../../../infrastructure/persistence/typeorm/repositories/cash-shift.repository';
+import { IUserRepository } from '../../../domain/repositories/user.repository.interface';
 import { OpenShiftDto } from './dto/open-shift.dto';
 
 @Injectable()
 export class OpenShiftUseCase {
   constructor(
     private readonly cashShiftRepo: CashShiftRepository,
+    @Inject('IUserRepository')
+    private readonly userRepo: IUserRepository,
   ) {}
 
   async execute(tenantId: string, userId: string, dto: OpenShiftDto): Promise<CashShift> {
@@ -16,10 +19,14 @@ export class OpenShiftUseCase {
       throw new BadRequestException('Ya posees un turno de caja activo abierto.');
     }
 
-    // 2. Initialize new shift
+    // 2. Fetch cashier profile to resolve branch assignment
+    const user = await this.userRepo.findById(userId);
+
+    // 3. Initialize new shift
     const shift = new CashShift({
       tenant_id: tenantId,
       cashier_id: userId,
+      branch_id: user?.branch_id || undefined,
       status: 'OPEN',
       opened_at: new Date(),
       opening_balance_usd: dto.openingBalanceUsd ?? 0.00,
