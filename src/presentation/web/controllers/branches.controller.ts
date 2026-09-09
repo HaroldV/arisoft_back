@@ -20,6 +20,7 @@ import {
   AssignBranchWarehouseDto,
 } from '../../../application/use-cases/branches/dto/branch.dto';
 import { BACKEND_SYSTEM_CONSTANTS } from '../../../domain/constants/domain.constants';
+import { UserRole } from '../../../domain/entities/user.entity';
 
 @Controller('settings/branches')
 @UseGuards(JwtAuthGuard, TenantActiveGuard)
@@ -31,7 +32,7 @@ export class BranchesController {
       req.user?.tenant_id ||
       req.user?.tenantId ||
       BACKEND_SYSTEM_CONSTANTS.DEFAULT_SYSTEM_TENANT_ID;
-    const userRole = req.user?.role || 'CASHIER';
+    const userRole = req.user?.role || UserRole.CASHIER;
     return { tenantId, userRole };
   }
 

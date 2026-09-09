@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { BranchRepository } from '../../../infrastructure/persistence/typeorm/repositories/branch.repository';
 import { Branch } from '../../../domain/entities/branch.entity';
+import { UserRole } from '../../../domain/entities/user.entity';
 import { CreateBranchDto, UpdateBranchDto } from './dto/branch.dto';
 import { BACKEND_SYSTEM_CONSTANTS, SaasPlanEnum } from '../../../domain/constants/domain.constants';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -153,7 +154,7 @@ export class BranchesUseCase {
   }
 
   private assertOwnerRole(userRole: string): void {
-    if (userRole !== 'OWNER' && userRole !== 'SUPER_ADMIN') {
+    if (userRole !== UserRole.OWNER && userRole !== UserRole.SUPER_ADMIN) {
       throw new ForbiddenException('Solo el Propietario (OWNER) de la empresa tiene permisos para gestionar sucursales y asignar almacenes.');
     }
   }
