@@ -7,6 +7,7 @@ import { PurchaseFiscalNoteItem } from '../../../../domain/entities/purchase-fis
 import { PurchaseInvoice } from '../../../../domain/entities/purchase-invoice.entity';
 import { Provider } from '../../../../domain/entities/provider.entity';
 import { Product } from '../../../../domain/entities/product.entity';
+import { BACKEND_SYSTEM_CONSTANTS, FiscalNoteStatusEnum } from '../../../../domain/constants/domain.constants';
 import { BaseTenantRepository } from './base-tenant.repository';
 
 @Injectable({ scope: Scope.REQUEST })
@@ -21,7 +22,7 @@ export class PurchaseFiscalNoteRepository extends BaseTenantRepository<PurchaseF
       request?.tenant_id || 
       request?.headers?.['x-tenant-id'] || 
       request?.headers?.['X-Tenant-Id'] || 
-      'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+      BACKEND_SYSTEM_CONSTANTS.DEFAULT_SYSTEM_TENANT_ID;
     super(tenantId);
   }
 
@@ -30,7 +31,7 @@ export class PurchaseFiscalNoteRepository extends BaseTenantRepository<PurchaseF
 
     if (note.id) {
       const existing = await this.purchaseFiscalNoteRepository.findOne({ where: { id: note.id } });
-      if (existing && existing.status === 'POSTED') {
+      if (existing && existing.status === FiscalNoteStatusEnum.POSTED) {
         throw new Error('No se puede modificar una Nota Fiscal de Compra en estado POSTED. Regla de inmutabilidad fiscal.');
       }
     }

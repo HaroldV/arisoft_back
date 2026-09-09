@@ -29,6 +29,32 @@ export enum AccountStatusEnum {
   OVERDUE = 'OVERDUE',
 }
 
+export enum CashShiftStatusEnum {
+  OPEN = 'OPEN',
+  PENDING_APPROVAL = 'PENDING_APPROVAL',
+  CLOSED = 'CLOSED',
+  APPROVED = 'APPROVED',
+}
+
+export enum SaleStatusEnum {
+  PAID = 'PAID',
+  CANCELLED = 'CANCELLED',
+  DRAFT = 'DRAFT',
+  ANULADA = 'ANULADA',
+  AJUSTADA = 'AJUSTADA',
+}
+
+export enum FiscalNoteStatusEnum {
+  DRAFT = 'DRAFT',
+  POSTED = 'POSTED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum FiscalNoteTypeEnum {
+  CREDIT = 'CREDIT',
+  DEBIT = 'DEBIT',
+}
+
 export enum PurchaseOrderStatusEnum {
   DRAFT = 'DRAFT',
   SENT = 'SENT',
@@ -96,6 +122,9 @@ export const PLAN_DEFAULT_PERMISSIONS: Record<SaasPlanEnum, string[]> = {
     // 3. Módulo Control de Inventario (INVENTORY)
     'inventory:create',
     'inventory:stock',
+    'inventory:view',
+    'inventory:write',
+    'inventory:adjust',
     'inventory:warehouse',
     'inventory:categories',
     // 4. Módulo Cuentas (BANKS)
@@ -103,7 +132,8 @@ export const PLAN_DEFAULT_PERMISSIONS: Record<SaasPlanEnum, string[]> = {
     // 5. Módulo Configuración de Empresa (SETTINGS)
     'company:manage',
     'fiscal:manage',
-    'users:manage'
+    'users:manage',
+    'branches:manage',
   ],
   [SaasPlanEnum.COMERCIAL_PRO]: [
     'pos:create',
@@ -119,6 +149,9 @@ export const PLAN_DEFAULT_PERMISSIONS: Record<SaasPlanEnum, string[]> = {
     'providers:manage',
     'inventory:create',
     'inventory:stock',
+    'inventory:view',
+    'inventory:write',
+    'inventory:adjust',
     'inventory:bulk_prices',
     'inventory:valuation',
     'inventory:warehouse',
@@ -131,7 +164,8 @@ export const PLAN_DEFAULT_PERMISSIONS: Record<SaasPlanEnum, string[]> = {
     'reports:view',
     'company:manage',
     'fiscal:manage',
-    'users:manage'
+    'users:manage',
+    'branches:manage',
   ],
   [SaasPlanEnum.CORPORATIVO]: [
     'pos:create',
@@ -147,6 +181,9 @@ export const PLAN_DEFAULT_PERMISSIONS: Record<SaasPlanEnum, string[]> = {
     'providers:manage',
     'inventory:create',
     'inventory:stock',
+    'inventory:view',
+    'inventory:write',
+    'inventory:adjust',
     'inventory:bulk_prices',
     'inventory:valuation',
     'inventory:warehouse',
@@ -160,7 +197,8 @@ export const PLAN_DEFAULT_PERMISSIONS: Record<SaasPlanEnum, string[]> = {
     'reports:view',
     'company:manage',
     'fiscal:manage',
-    'users:manage'
+    'users:manage',
+    'branches:manage',
   ],
 };
 
@@ -173,9 +211,9 @@ export const BACKEND_SYSTEM_CONSTANTS = {
   DEFAULT_PASSWORD_ONBOARDING: process.env.SUPERADMIN_PASSWORD || process.env.SAAS_DEFAULT_ONBOARDING_PASS || 'ArivPassword123!',
   DEFAULT_OWNER_NAME: 'Gerente General',
   PLAN_LIMITS: {
-    EMPRENDEDOR: { USERS: 2, PRODUCTS: 500, FEE_USD: 25 },
-    COMERCIAL_PRO: { USERS: 5, PRODUCTS: 5000, FEE_USD: 50 },
-    CORPORATIVO: { USERS: 50, PRODUCTS: 999999, FEE_USD: 120 },
+    EMPRENDEDOR: { USERS: 2, PRODUCTS: 500, BRANCHES: 1, FEE_USD: 25 },
+    COMERCIAL_PRO: { USERS: 5, PRODUCTS: 5000, BRANCHES: 3, FEE_USD: 50 },
+    CORPORATIVO: { USERS: 50, PRODUCTS: 999999, BRANCHES: 999, FEE_USD: 120 },
   },
   SAAS_ADDON_PRICING: {
     PAYROLL: 10.00,

@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Body, Headers, UseGuards, Req, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, Headers, UseGuards, Req, ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiHeader, ApiBearerAuth } from '@nestjs/swagger';
 import { isUUID } from 'class-validator';
 import { JwtAuthGuard } from '../../../infrastructure/auth/guards/jwt-auth.guard';
@@ -93,6 +93,28 @@ export class CashShiftsController {
       throw new ForbiddenException('Solo propietarios o supervisores pueden aprobar cierres de caja');
     }
     return this.approveShiftUseCase.execute(tenantId, req.user.id, shiftId);
+  }
+
+  @Get(':id/details')
+  @RequiredModules(AppModule.POS)
+  @ApiOperation({ summary: 'Get shift details with payment and products breakdown' })
+  @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier' })
+  async getShiftDetails(
+    @Headers('x-tenant-id') tenantId: string,
+    @Param('id') shiftId: string,
+    @Req() req: any,
+  ) {
+    if (!tenantId || !isUUID(tenantId)) {
+      throw new BadRequestException('x-tenant-id must be a valid UUID');
+    }
+    if (tenantId !== req.user.tenant_id) {
+      throw new ForbiddenException('Tenant ID does not match authenticated session');
+    }
+    const details = await this.cashShiftRepo.findShiftDetailsWithBreakdown(shiftId);
+    if (!details) {
+      throw new NotFoundException(`Turno con ID ${shiftId} no encontrado`);
+    }
+    return details;
   }
 
   @Get()

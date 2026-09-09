@@ -7,7 +7,8 @@ import { User } from '../../../../domain/entities/user.entity';
 import { PurchaseItem } from '../../../../domain/entities/purchase-item.entity';
 import { Product } from '../../../../domain/entities/product.entity';
 import { AccountPayable } from '../../../../domain/entities/account-payable.entity';
-import { AccountStatusEnum, FINANCIAL_CONSTANTS } from '../../../../domain/constants/domain.constants';
+import { PurchaseFiscalNote } from '../../../../domain/entities/purchase-fiscal-note.entity';
+import { AccountStatusEnum, BACKEND_SYSTEM_CONSTANTS, FiscalNoteStatusEnum, FINANCIAL_CONSTANTS } from '../../../../domain/constants/domain.constants';
 import { BaseTenantRepository } from './base-tenant.repository';
 
 @Injectable({ scope: Scope.REQUEST })
@@ -22,7 +23,7 @@ export class PurchaseInvoiceRepository extends BaseTenantRepository<PurchaseInvo
       request?.tenant_id || 
       request?.headers?.['x-tenant-id'] || 
       request?.headers?.['X-Tenant-Id'] || 
-      'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+      BACKEND_SYSTEM_CONSTANTS.DEFAULT_SYSTEM_TENANT_ID;
     super(tenantId);
   }
 
@@ -43,8 +44,8 @@ export class PurchaseInvoiceRepository extends BaseTenantRepository<PurchaseInvo
     const rawResults = await this.purchaseInvoiceRepository
       .createQueryBuilder('invoice')
       .leftJoin(User, 'user', 'user.id = invoice.created_by_user_id')
-      .leftJoin('purchase_fiscal_notes', 'note', 'note.original_invoice_id = invoice.id AND note.status = \'POSTED\'')
-      .leftJoin('accounts_payable', 'ap', 'ap.reference_document_id = invoice.id OR ap.reference_document_number = invoice.invoice_number OR ap.supplier_invoice_number = invoice.invoice_number')
+      .leftJoin(PurchaseFiscalNote, 'note', 'note.original_invoice_id = invoice.id AND note.status = :postedStatus', { postedStatus: FiscalNoteStatusEnum.POSTED })
+      .leftJoin(AccountPayable, 'ap', 'ap.reference_document_id = invoice.id OR ap.reference_document_number = invoice.invoice_number OR ap.supplier_invoice_number = invoice.invoice_number')
       .select([
         'invoice.id AS id',
         'invoice.invoice_number AS invoice_number',

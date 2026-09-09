@@ -17,10 +17,15 @@ describe('OpenShiftUseCase', () => {
       save: jest.fn(),
     };
 
+    const mockUserRepo = {
+      findById: jest.fn().mockResolvedValue({ id: cashierId, branch_id: 'branch-1' }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OpenShiftUseCase,
         { provide: CashShiftRepository, useValue: mockCashShiftRepo },
+        { provide: 'IUserRepository', useValue: mockUserRepo },
       ],
     }).compile();
 

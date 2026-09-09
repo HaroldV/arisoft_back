@@ -177,4 +177,17 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   locationId?: string;
+
+  @ApiProperty({
+    description: 'Código o nombre del almacén para asociar stock',
+    example: 'ALM-01',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  warehouseCode?: string;
+
+  @IsOptional()
+  @IsString()
+  warehouseLocationId?: string;
 }

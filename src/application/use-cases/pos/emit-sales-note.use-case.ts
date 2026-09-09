@@ -13,6 +13,7 @@ import { FiscalAuditLog } from '../../../domain/entities/fiscal-audit-log.entity
 import { TenantFiscalRangeRepository } from '../../../infrastructure/persistence/typeorm/repositories/tenant-fiscal-range.repository';
 import { SalesFiscalNoteRepository } from '../../../infrastructure/persistence/typeorm/repositories/sales-fiscal-note.repository';
 import { ProductRepository } from '../../../infrastructure/persistence/typeorm/repositories/product.repository';
+import { FiscalNoteStatusEnum } from '../../../domain/constants/domain.constants';
 
 export interface EmitSalesNoteItemDto {
   productId: string;
@@ -144,7 +145,7 @@ export class EmitSalesNoteUseCase {
         subtotal_ves: subtotalVes,
         tax_amount_ves: taxAmountVes,
         total_ves: totalVes,
-        status: 'POSTED', // Instantly published / final
+        status: FiscalNoteStatusEnum.POSTED, // Instantly published / final
       }));
 
       // Save Note Items

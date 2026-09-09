@@ -106,16 +106,8 @@ export class UpdateUserUseCase {
     }
 
     // Validate granular permission updates
-    if (dto.allowed_permissions) {
-      const creatorAllowedPermissions = updater.role === UserRole.OWNER
-        ? [
-            'pos:create', 'pos:discount', 'pos:refund', 'clients:manage',
-            'inventory:view', 'inventory:write', 'inventory:adjust', 'purchases:register', 'providers:manage',
-            'banks:view', 'banks:write', 'banks:transfer',
-            'users:manage', 'fiscal:manage', 'company:manage'
-          ]
-        : updater.permissions || [];
-
+    if (dto.allowed_permissions && updater.role !== UserRole.OWNER) {
+      const creatorAllowedPermissions = updater.permissions || [];
       const invalidPermissions = dto.allowed_permissions.filter(perm => !creatorAllowedPermissions.includes(perm));
       if (invalidPermissions.length > 0) {
         throw new BadRequestException(
@@ -159,6 +151,7 @@ export class UpdateUserUseCase {
     if (dto.email !== undefined) targetUser.email = dto.email.toLowerCase().trim();
     if (dto.role !== undefined) targetUser.role = dto.role;
     if (dto.role_id !== undefined) targetUser.role_id = dto.role_id || null;
+    if (dto.branch_id !== undefined) targetUser.branch_id = dto.branch_id || null;
     if (dto.allowed_modules !== undefined) targetUser.allowed_modules = dto.allowed_modules;
     if (dto.allowed_permissions !== undefined) targetUser.allowed_permissions = dto.allowed_permissions;
     if (dto.is_active !== undefined) targetUser.is_active = dto.is_active;

@@ -106,17 +106,23 @@ export class BulkUploadProductsUseCase {
 
             // Create immutable initial stock movement if initialStock is specified
             const initialQty = Number(productData.initialStock || 0);
-            if (initialQty > 0 || productData.locationId) {
-              const move = await manager.save(StockMove, new StockMove({
-                tenant_id: tenantId,
-                product_id: product.id,
-                type: StockMoveType.INITIAL_LOAD,
-                quantity: initialQty,
-                cost_at_time: productData.costUsd || 0,
-              }));
+            if (initialQty > 0 || productData.locationId || productData.warehouseLocationId || productData.warehouseCode) {
+              // Resolve warehouse location by ID or by Code/Name
+              let resolvedLocationId = productData.locationId || productData.warehouseLocationId;
+              
+              if (!resolvedLocationId && productData.warehouseCode) {
+                const whCode = productData.warehouseCode.trim();
+                const matchedWh = await manager.findOne(WarehouseLocation, {
+                  where: [
+                    { tenant_id: tenantId, name: whCode },
+                    { tenant_id: tenantId, id: whCode.length === 36 ? whCode : undefined }
+                  ]
+                });
+                if (matchedWh) {
+                  resolvedLocationId = matchedWh.id;
+                }
+              }
 
-              // Resolve or auto-create default warehouse location
-              let resolvedLocationId = productData.locationId;
               if (!resolvedLocationId) {
                 let defaultLoc = await manager.findOne(WarehouseLocation, {
                   where: { tenant_id: tenantId, type: LocationType.WAREHOUSE }
@@ -131,6 +137,15 @@ export class BulkUploadProductsUseCase {
                 }
                 resolvedLocationId = defaultLoc.id;
               }
+
+              const move = await manager.save(StockMove, new StockMove({
+                tenant_id: tenantId,
+                product_id: product.id,
+                type: StockMoveType.INITIAL_LOAD,
+                quantity: initialQty,
+                cost_at_time: productData.costUsd || 0,
+                warehouse_location_id: resolvedLocationId,
+              }));
 
               // Resolve batch if batch control or perishable is enabled
               let resolvedBatchId: string | null = null;

@@ -35,6 +35,9 @@ export class Sale {
   @Column({ type: 'uuid', nullable: true })
   shift_id?: string;
 
+  @Column({ type: 'uuid', nullable: true })
+  branch_id?: string;
+
   @CreateDateColumn()
   created_at: Date;
 

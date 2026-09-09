@@ -12,6 +12,7 @@ import { WarehouseLocation } from '../../../domain/entities/warehouse-location.e
 import { FiscalAuditLog } from '../../../domain/entities/fiscal-audit-log.entity';
 import { PurchaseFiscalNoteRepository } from '../../../infrastructure/persistence/typeorm/repositories/purchase-fiscal-note.repository';
 import { ProductRepository } from '../../../infrastructure/persistence/typeorm/repositories/product.repository';
+import { FiscalNoteStatusEnum } from '../../../domain/constants/domain.constants';
 
 export interface RegisterPurchaseNoteItemDto {
   productId: string;
@@ -138,7 +139,7 @@ export class RegisterPurchaseNoteUseCase {
         subtotal_ves: subtotalVes,
         tax_amount_ves: taxAmountVes,
         total_ves: totalVes,
-        status: 'POSTED',
+        status: FiscalNoteStatusEnum.POSTED,
       }));
 
       // Save Purchase Note Items

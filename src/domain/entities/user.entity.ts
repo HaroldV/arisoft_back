@@ -39,6 +39,13 @@ export class User {
   role_ref?: any;
 
   @Column({ type: 'uuid', nullable: true })
+  branch_id?: string;
+
+  @ManyToOne('Branch', { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'branch_id' })
+  branch?: any;
+
+  @Column({ type: 'uuid', nullable: true })
   creator_id: string;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })

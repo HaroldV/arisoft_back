@@ -14,7 +14,7 @@ import { PurchaseInvoiceRepository } from '../../../infrastructure/persistence/t
 import { PurchaseFiscalNoteRepository } from '../../../infrastructure/persistence/typeorm/repositories/purchase-fiscal-note.repository';
 import { ModulesGuard } from '../../../infrastructure/auth/guards/modules.guard';
 import { JwtAuthGuard } from '../../../infrastructure/auth/guards/jwt-auth.guard';
-import { RequiredModules, AppModule } from '../../../infrastructure/auth/decorators/modules.decorator';
+import { RequiredModules, RequireAnyModule, AppModule } from '../../../infrastructure/auth/decorators/modules.decorator';
 import { PermissionsGuard } from '../../../infrastructure/auth/guards/permissions.guard';
 import { RequiredPermissions } from '../../../infrastructure/auth/decorators/permissions.decorator';
 
@@ -137,20 +137,21 @@ export class InventoryController {
   }
 
   @Get('products')
-  @RequiredModules(AppModule.INVENTORY)
-  @RequiredPermissions('inventory:view')
+  @RequireAnyModule(AppModule.INVENTORY, AppModule.POS)
   @ApiOperation({ summary: 'Get products of the tenant with dynamic stocks balance' })
   @ApiHeader({ name: 'x-tenant-id', required: false, description: 'Tenant Identifier' })
   @ApiQuery({ name: 'sku', required: false, description: 'Filtrar por SKU exacto' })
   @ApiQuery({ name: 'name', required: false, description: 'Filtrar por coincidencia parcial de nombre' })
+  @ApiQuery({ name: 'warehouse_id', required: false, description: 'Filtrar stock por ID de almacén' })
   async getProducts(
     @Headers('x-tenant-id') headerTenantId: string,
     @Req() req: any,
     @Query('sku') sku?: string,
     @Query('name') name?: string,
+    @Query('warehouse_id') warehouseId?: string,
   ) {
     this.validateTenant(headerTenantId, req);
-    return this.productRepo.findProductsWithStock({ sku, name });
+    return this.productRepo.findProductsWithStock({ sku, name, warehouseId });
   }
 
   @Get('purchases')

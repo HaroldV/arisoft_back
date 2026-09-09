@@ -112,6 +112,10 @@ export class CreateSaleUseCase {
       // Resolve next fiscal and control numbers inside transaction block
       const numbers = await this.tenantFiscalRangeRepo.getNextRangeNumbers(FiscalDocType.INVOICE, manager);
 
+      // Determine branch and warehouse from active shift or user
+      const branchId = activeShift?.branch_id || undefined;
+      const warehouseLocationId = activeShift?.branch?.default_warehouse_id || undefined;
+
       // Save sale header
       const sale = await manager.save(Sale, new Sale({
         tenant_id: tenantId,
@@ -124,6 +128,7 @@ export class CreateSaleUseCase {
         control_number: numbers.controlNumber,
         payment_method: dto.paymentMethod || null,
         shift_id: activeShift?.id || null,
+        branch_id: branchId || null,
       }));
 
       // Save split payments
@@ -204,6 +209,7 @@ export class CreateSaleUseCase {
           cost_at_time: prod.cost_usd, // Egress registers at cost_usd
           source_type: 'SALE',
           source_id: sale.id,
+          warehouse_location_id: warehouseLocationId || null,
           justification: justification || null,
           created_by_user_id: userId,
         }));

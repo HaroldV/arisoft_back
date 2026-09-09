@@ -150,6 +150,11 @@ import { FileUploadController } from './presentation/web/controllers/file-upload
 import { UploadImageUseCase } from './application/use-cases/file/upload-image.use-case';
 import { S3Service } from './infrastructure/storage/s3-service';
 
+import { Branch } from './domain/entities/branch.entity';
+import { BranchRepository } from './infrastructure/persistence/typeorm/repositories/branch.repository';
+import { BranchesUseCase } from './application/use-cases/branches/branches.use-case';
+import { BranchesController } from './presentation/web/controllers/branches.controller';
+
 import { DatabaseMigrationService } from './infrastructure/persistence/typeorm/services/database-migration.service';
 
 @Module({
@@ -180,13 +185,13 @@ import { DatabaseMigrationService } from './infrastructure/persistence/typeorm/s
           password: configService.get<string>('DB_PASSWORD'),
           database: configService.get<string>('DB_NAME'),
           ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-          entities: [User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory, SchemaMigrationLock],
+          entities: [User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory, SchemaMigrationLock, Branch],
           synchronize: false,
         };
       },
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory, SchemaMigrationLock]),
+    TypeOrmModule.forFeature([User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory, SchemaMigrationLock, Branch]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -223,6 +228,7 @@ import { DatabaseMigrationService } from './infrastructure/persistence/typeorm/s
     SuperAdminController,
     SubscriptionController,
     FileUploadController,
+    BranchesController,
   ],
   providers: [
     // Use Cases
@@ -268,6 +274,7 @@ import { DatabaseMigrationService } from './infrastructure/persistence/typeorm/s
     RegisterSubscriptionPaymentUseCase,
     ApproveSubscriptionPaymentUseCase,
     UploadImageUseCase,
+    BranchesUseCase,
 
     // Core Services & Auth Guards
     AuthService,
@@ -313,6 +320,7 @@ import { DatabaseMigrationService } from './infrastructure/persistence/typeorm/s
     CommercialDocumentRepository,
     SystemSettingRepository,
     ExchangeRateHistoryRepository,
+    BranchRepository,
   ],
 })
 export class AppModule implements OnModuleInit {
