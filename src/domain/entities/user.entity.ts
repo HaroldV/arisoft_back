@@ -1,4 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Unique, ManyToOne, JoinColumn } from 'typeorm';
+import { Role } from './role.entity';
+import { Branch } from './branch.entity';
 
 export enum UserRole {
   OWNER = 'OWNER',
@@ -34,16 +36,16 @@ export class User {
   @Column({ type: 'uuid', nullable: true })
   role_id?: string;
 
-  @ManyToOne('Role', { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => Role, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'role_id' })
-  role_ref?: any;
+  role_ref?: Role;
 
   @Column({ type: 'uuid', nullable: true })
   branch_id?: string;
 
-  @ManyToOne('Branch', { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => Branch, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'branch_id' })
-  branch?: any;
+  branch?: Branch;
 
   @Column({ type: 'uuid', nullable: true })
   creator_id: string;
