@@ -156,6 +156,7 @@ import { BranchesUseCase } from './application/use-cases/branches/branches.use-c
 import { BranchesController } from './presentation/web/controllers/branches.controller';
 
 import { DatabaseMigrationService } from './infrastructure/persistence/typeorm/services/database-migration.service';
+import { ALL_ENTITIES } from './domain/entities';
 
 @Module({
   imports: [
@@ -172,7 +173,7 @@ import { DatabaseMigrationService } from './infrastructure/persistence/typeorm/s
             type: 'postgres',
             url: databaseUrl,
             ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-            entities: [User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory, SchemaMigrationLock],
+            entities: ALL_ENTITIES,
             synchronize: false,
           };
         }
@@ -185,13 +186,13 @@ import { DatabaseMigrationService } from './infrastructure/persistence/typeorm/s
           password: configService.get<string>('DB_PASSWORD'),
           database: configService.get<string>('DB_NAME'),
           ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-          entities: [User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory, SchemaMigrationLock, Branch],
+          entities: ALL_ENTITIES,
           synchronize: false,
         };
       },
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([User, Tenant, Product, StockMove, PasswordResetToken, RefreshToken, PurchaseInvoice, PurchaseItem, Sale, SaleItem, Provider, Client, BankAccount, BankMovement, Category, WarehouseLocation, ProductBatch, StockBalance, TenantFiscalRange, SalesFiscalNote, SalesFiscalNoteItem, PurchaseFiscalNote, PurchaseFiscalNoteItem, FiscalAuditLog, Role, AccountReceivablePayable, AccountReceivable, AccountPayable, AccountPayment, StockSnapshot, CommercialDocument, CommercialDocumentItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceptionNote, PurchaseReceptionItem, PurchaseReceptionItemSerial, ProductCostHistory, SalePayment, CashShift, SaasPlan, SubscriptionPaymentReceipt, SystemSetting, ExchangeRateHistory, SchemaMigrationLock, Branch]),
+    TypeOrmModule.forFeature(ALL_ENTITIES),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
