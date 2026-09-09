@@ -7,6 +7,8 @@ import { StockMove } from '../../../../domain/entities/stock-move.entity';
 import { WarehouseLocation } from '../../../../domain/entities/warehouse-location.entity';
 import { Branch } from '../../../../domain/entities/branch.entity';
 import { User } from '../../../../domain/entities/user.entity';
+import { Category } from '../../../../domain/entities/category.entity';
+import { BACKEND_SYSTEM_CONSTANTS } from '../../../../domain/constants/domain.constants';
 import { BaseTenantRepository } from './base-tenant.repository';
 
 @Injectable({ scope: Scope.REQUEST })
@@ -21,7 +23,7 @@ export class ProductRepository extends BaseTenantRepository<Product> {
       request?.tenant_id || 
       request?.headers?.['x-tenant-id'] || 
       request?.headers?.['X-Tenant-Id'] || 
-      'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+      BACKEND_SYSTEM_CONSTANTS.DEFAULT_SYSTEM_TENANT_ID;
     super(tenantId);
   }
 
@@ -90,7 +92,7 @@ export class ProductRepository extends BaseTenantRepository<Product> {
     }
 
     query
-      .leftJoin('categories', 'cat', 'cat.id = product.category_id')
+      .leftJoin(Category, 'cat', 'cat.id = product.category_id')
       .leftJoin(User, 'creator', 'creator.id = product.created_by_user_id')
       .leftJoin(User, 'updater', 'updater.id = product.updated_by_user_id')
       .select('product.id', 'id')

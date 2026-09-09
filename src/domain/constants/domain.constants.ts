@@ -29,6 +29,32 @@ export enum AccountStatusEnum {
   OVERDUE = 'OVERDUE',
 }
 
+export enum CashShiftStatusEnum {
+  OPEN = 'OPEN',
+  PENDING_APPROVAL = 'PENDING_APPROVAL',
+  CLOSED = 'CLOSED',
+  APPROVED = 'APPROVED',
+}
+
+export enum SaleStatusEnum {
+  PAID = 'PAID',
+  CANCELLED = 'CANCELLED',
+  DRAFT = 'DRAFT',
+  ANULADA = 'ANULADA',
+  AJUSTADA = 'AJUSTADA',
+}
+
+export enum FiscalNoteStatusEnum {
+  DRAFT = 'DRAFT',
+  POSTED = 'POSTED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum FiscalNoteTypeEnum {
+  CREDIT = 'CREDIT',
+  DEBIT = 'DEBIT',
+}
+
 export enum PurchaseOrderStatusEnum {
   DRAFT = 'DRAFT',
   SENT = 'SENT',

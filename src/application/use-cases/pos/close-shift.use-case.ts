@@ -1,6 +1,9 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { CashShift } from '../../../domain/entities/cash-shift.entity';
+import { SalePayment } from '../../../domain/entities/sale-payment.entity';
+import { Sale } from '../../../domain/entities/sale.entity';
+import { CashShiftStatusEnum } from '../../../domain/constants/domain.constants';
 import { CashShiftRepository } from '../../../infrastructure/persistence/typeorm/repositories/cash-shift.repository';
 import { CloseShiftDto } from './dto/close-shift.dto';
 
@@ -18,16 +21,15 @@ export class CloseShiftUseCase {
       throw new NotFoundException('No tienes ningún turno de caja activo abierto.');
     }
 
-    if (shift.status !== 'OPEN') {
+    if (shift.status !== CashShiftStatusEnum.OPEN) {
       throw new BadRequestException('El turno de caja no se encuentra abierto.');
     }
 
     // 2. Calculate expected cash from sales and changes
-    const sums = await this.dataSource.createQueryBuilder()
+    const sums = await this.dataSource.createQueryBuilder(SalePayment, 'payment')
       .select('payment.payment_method', 'method')
       .addSelect('SUM(payment.amount_original)', 'sum')
-      .from('sale_payments', 'payment')
-      .innerJoin('sales', 'sale', 'sale.id = payment.sale_id')
+      .innerJoin(Sale, 'sale', 'sale.id = payment.sale_id')
       .where('sale.shift_id = :shiftId', { shiftId: shift.id })
       .groupBy('payment.payment_method')
       .getRawMany();
@@ -62,7 +64,7 @@ export class CloseShiftUseCase {
     const discrepancyVes = dto.declaredCashVes - expectedVes;
 
     // 3. Update shift state
-    shift.status = 'PENDING_APPROVAL';
+    shift.status = CashShiftStatusEnum.PENDING_APPROVAL;
     shift.closed_at = new Date();
     shift.declared_cash_usd = dto.declaredCashUsd;
     shift.declared_cash_ves = dto.declaredCashVes;

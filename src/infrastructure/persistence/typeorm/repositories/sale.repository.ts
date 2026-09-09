@@ -8,6 +8,8 @@ import { SaleItem } from '../../../../domain/entities/sale-item.entity';
 import { Product } from '../../../../domain/entities/product.entity';
 import { Client } from '../../../../domain/entities/client.entity';
 import { StockMove, StockMoveType } from '../../../../domain/entities/stock-move.entity';
+import { SalesFiscalNote } from '../../../../domain/entities/sales-fiscal-note.entity';
+import { BACKEND_SYSTEM_CONSTANTS, FiscalNoteStatusEnum, SaleStatusEnum, FINANCIAL_CONSTANTS } from '../../../../domain/constants/domain.constants';
 import { BaseTenantRepository } from './base-tenant.repository';
 
 @Injectable({ scope: Scope.REQUEST })
@@ -22,7 +24,7 @@ export class SaleRepository extends BaseTenantRepository<Sale> {
       request?.tenant_id || 
       request?.headers?.['x-tenant-id'] || 
       request?.headers?.['X-Tenant-Id'] || 
-      'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+      BACKEND_SYSTEM_CONSTANTS.DEFAULT_SYSTEM_TENANT_ID;
     super(tenantId);
   }
 
@@ -40,7 +42,7 @@ export class SaleRepository extends BaseTenantRepository<Sale> {
     const rawResults = await this.saleRepository
       .createQueryBuilder('sale')
       .leftJoin(User, 'user', 'user.id = sale.user_id')
-      .leftJoin('sales_fiscal_notes', 'note', 'note.original_invoice_id = sale.id AND note.status = \'POSTED\'')
+      .leftJoin(SalesFiscalNote, 'note', 'note.original_invoice_id = sale.id AND note.status = :postedStatus', { postedStatus: FiscalNoteStatusEnum.POSTED })
       .select([
         'sale.id AS id',
         'sale.total_amount_usd AS total_amount_usd',
@@ -65,13 +67,13 @@ export class SaleRepository extends BaseTenantRepository<Sale> {
 
     return rawResults.map(r => {
       const totalAmountUsd = parseFloat(r.total_amount_usd);
-      const totalCreditedUsd = parseFloat(r.total_credited_usd || '0');
+      const totalCreditedUsd = parseFloat(r.total_credited_usd || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK);
       let calculatedStatus = r.status;
       
-      if (totalCreditedUsd >= totalAmountUsd - 0.01 && totalAmountUsd > 0) {
-        calculatedStatus = 'ANULADA';
-      } else if (totalCreditedUsd > 0.01 || r.debit_notes) {
-        calculatedStatus = 'AJUSTADA';
+      if (totalCreditedUsd >= totalAmountUsd - FINANCIAL_CONSTANTS.MIN_BALANCE_THRESHOLD && totalAmountUsd > 0) {
+        calculatedStatus = SaleStatusEnum.ANULADA;
+      } else if (totalCreditedUsd > FINANCIAL_CONSTANTS.MIN_BALANCE_THRESHOLD || r.debit_notes) {
+        calculatedStatus = SaleStatusEnum.AJUSTADA;
       }
 
       return {

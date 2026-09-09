@@ -3,6 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { REQUEST } from '@nestjs/core';
 import { CashShift } from '../../../../domain/entities/cash-shift.entity';
+import { SalePayment } from '../../../../domain/entities/sale-payment.entity';
+import { SaleItem } from '../../../../domain/entities/sale-item.entity';
+import { Sale } from '../../../../domain/entities/sale.entity';
+import { Product } from '../../../../domain/entities/product.entity';
+import { BACKEND_SYSTEM_CONSTANTS, CashShiftStatusEnum, FINANCIAL_CONSTANTS } from '../../../../domain/constants/domain.constants';
 import { BaseTenantRepository } from './base-tenant.repository';
 
 @Injectable({ scope: Scope.REQUEST })
@@ -17,7 +22,7 @@ export class CashShiftRepository extends BaseTenantRepository<CashShift> {
       request?.tenant_id || 
       request?.headers?.['x-tenant-id'] || 
       request?.headers?.['X-Tenant-Id'] || 
-      'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+      BACKEND_SYSTEM_CONSTANTS.DEFAULT_SYSTEM_TENANT_ID;
     super(tenantId);
   }
 
@@ -35,7 +40,7 @@ export class CashShiftRepository extends BaseTenantRepository<CashShift> {
   }
 
   async findActiveShift(cashierId: string): Promise<CashShift | null> {
-    const conditions = this.enforceTenantCondition({ cashier_id: cashierId, status: 'OPEN' });
+    const conditions = this.enforceTenantCondition({ cashier_id: cashierId, status: CashShiftStatusEnum.OPEN });
     return this.cashShiftRepository.findOne({
       where: conditions,
       relations: ['cashier', 'branch', 'branch.default_warehouse'],
@@ -43,7 +48,7 @@ export class CashShiftRepository extends BaseTenantRepository<CashShift> {
   }
 
   async findLastClosedShift(): Promise<CashShift | null> {
-    const conditions = this.enforceTenantCondition({ status: 'CLOSED' });
+    const conditions = this.enforceTenantCondition({ status: CashShiftStatusEnum.CLOSED });
     return this.cashShiftRepository.findOne({
       where: conditions,
       relations: ['cashier', 'branch'],
@@ -66,28 +71,26 @@ export class CashShiftRepository extends BaseTenantRepository<CashShift> {
 
     // Fetch payments summary
     const paymentsSummary = await this.cashShiftRepository.manager
-      .createQueryBuilder()
+      .createQueryBuilder(SalePayment, 'p')
       .select('p.payment_method', 'method')
       .addSelect('SUM(p.amount_usd)', 'total_usd')
       .addSelect('SUM(p.amount_original)', 'total_original')
       .addSelect('p.currency', 'currency')
-      .from('sale_payments', 'p')
-      .innerJoin('sales', 's', 's.id = p.sale_id')
+      .innerJoin(Sale, 's', 's.id = p.sale_id')
       .where('s.shift_id = :shiftId', { shiftId })
       .groupBy('p.payment_method, p.currency')
       .getRawMany();
 
     // Fetch products sold breakdown
     const productsBreakdown = await this.cashShiftRepository.manager
-      .createQueryBuilder()
+      .createQueryBuilder(SaleItem, 'item')
       .select('prod.id', 'product_id')
       .addSelect('prod.sku', 'sku')
       .addSelect('prod.name', 'name')
       .addSelect('SUM(item.quantity)', 'total_quantity')
       .addSelect('SUM(item.quantity * item.price_at_time_usd)', 'total_usd')
-      .from('sale_items', 'item')
-      .innerJoin('sales', 's', 's.id = item.sale_id')
-      .innerJoin('products', 'prod', 'prod.id = item.product_id')
+      .innerJoin(Sale, 's', 's.id = item.sale_id')
+      .innerJoin(Product, 'prod', 'prod.id = item.product_id')
       .where('s.shift_id = :shiftId', { shiftId })
       .groupBy('prod.id, prod.sku, prod.name')
       .orderBy('total_quantity', 'DESC')
@@ -95,31 +98,30 @@ export class CashShiftRepository extends BaseTenantRepository<CashShift> {
 
     // Count sales and total billed
     const salesStats = await this.cashShiftRepository.manager
-      .createQueryBuilder()
+      .createQueryBuilder(Sale, 's')
       .select('COUNT(s.id)', 'sales_count')
       .addSelect('COALESCE(SUM(s.total_amount_usd), 0)', 'total_billed_usd')
-      .from('sales', 's')
       .where('s.shift_id = :shiftId', { shiftId })
       .getRawOne();
 
     return {
       shift,
       stats: {
-        sales_count: parseInt(salesStats?.sales_count || '0', 10),
-        total_billed_usd: parseFloat(salesStats?.total_billed_usd || '0'),
+        sales_count: parseInt(salesStats?.sales_count || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK, 10),
+        total_billed_usd: parseFloat(salesStats?.total_billed_usd || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK),
       },
       payments_summary: paymentsSummary.map((p) => ({
         method: p.method,
-        total_usd: parseFloat(p.total_usd || '0'),
-        total_original: parseFloat(p.total_original || '0'),
+        total_usd: parseFloat(p.total_usd || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK),
+        total_original: parseFloat(p.total_original || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK),
         currency: p.currency,
       })),
       products_sold: productsBreakdown.map((p) => ({
         product_id: p.product_id,
         sku: p.sku,
         name: p.name,
-        quantity: parseInt(p.total_quantity || '0', 10),
-        total_usd: parseFloat(p.total_usd || '0'),
+        quantity: parseInt(p.total_quantity || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK, 10),
+        total_usd: parseFloat(p.total_usd || FINANCIAL_CONSTANTS.ZERO_STRING_FALLBACK),
       })),
     };
   }
