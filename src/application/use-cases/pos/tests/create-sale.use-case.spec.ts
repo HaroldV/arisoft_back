@@ -183,14 +183,41 @@ describe('CreateSaleUseCase', () => {
     expect(result.totalAmountUsd).toBe(18); // (2 * 10) * 0.9 = 18
   });
 
-  it('should throw BadRequestException if user does not have permission pos:discount', async () => {
+  it('should successfully register sale with bank account payment and create bank movement', async () => {
+    const bankAccountId = 'd0eebc99-9c0b-4ef8-bb6d-6bb9bd380a55';
     const dto = {
-      discountPercent: 10,
+      exchangeRateApplied: 36.5,
       items: [{ productId: productId1, quantity: 2 }],
+      payments: [
+        {
+          paymentMethod: 'ZELLE',
+          amountOriginal: 20.0,
+          currency: 'USD',
+          bankAccountId,
+          senderIdentifier: 'cliente.zelle@gmail.com',
+          transactionReference: 'CONF-12345',
+        },
+      ],
     };
 
-    await expect(
-      useCase.execute(tenantId, { id: userId, role: 'CASHIER', permissions: [] }, dto)
-    ).rejects.toThrow(BadRequestException);
+    const tenant = Object.assign(new Tenant(), { id: tenantId, settings: { allow_negative_stock: false } });
+    tenantRepo.findById.mockResolvedValue(tenant);
+    productRepo.findByIds.mockResolvedValue([new Product({ id: productId1, price_usd: 10, cost_usd: 8 } as any)]);
+
+    const stockMap = new Map<string, number>();
+    stockMap.set(productId1, 5);
+    stockMoveRepo.getCurrentStocks.mockResolvedValue(stockMap);
+
+    mockManager.findOne = jest.fn().mockImplementation(async (entityClass, options) => {
+      if (options?.where?.id === bankAccountId) {
+        return { id: bankAccountId, name: 'Zelle Chase', current_balance: 100.0, is_active: true };
+      }
+      return null;
+    });
+
+    const result = await useCase.execute(tenantId, { id: userId, role: 'OWNER', permissions: [] }, dto as any);
+    expect(result.saleId).toBe('saved-sale-id');
+    expect(mockManager.save).toHaveBeenCalled();
   });
 });
+

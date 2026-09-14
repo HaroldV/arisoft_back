@@ -29,6 +29,15 @@ export class SalePayment {
   @Column({ type: 'varchar', nullable: true })
   transaction_reference?: string;
 
+  @Column({ type: 'uuid', nullable: true })
+  bank_account_id?: string;
+
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  last_four_digits?: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  sender_identifier?: string;
+
   @CreateDateColumn()
   created_at: Date;
 

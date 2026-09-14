@@ -54,6 +54,33 @@ export class CreateSalePaymentDto {
   @IsOptional()
   @IsString()
   transactionReference?: string;
+
+  @ApiProperty({
+    description: 'ID de la cuenta financiera receptora (Caja/Banco)',
+    example: 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33',
+    required: false,
+  })
+  @IsOptional()
+  @IsUUID()
+  bankAccountId?: string;
+
+  @ApiProperty({
+    description: 'Últimos 4 dígitos de la referencia (Pago Móvil / Transferencia Bs / Tarjeta)',
+    example: '4512',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  lastFourDigits?: string;
+
+  @ApiProperty({
+    description: 'Identificador del emisor: correo/alias/teléfono para Zelle o Binance ID para Binance',
+    example: 'juan.perez@gmail.com',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  senderIdentifier?: string;
 }
 
 export class SaleChangeDto {

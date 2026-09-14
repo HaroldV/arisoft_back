@@ -14,6 +14,9 @@ import { FiscalDocType } from '../../../domain/entities/tenant-fiscal-range.enti
 import { UserRole } from '../../../domain/entities/user.entity';
 import { CreateSaleDto } from './create-sale.dto';
 
+import { BankAccount } from '../../../domain/entities/bank-account.entity';
+import { BankMovement } from '../../../domain/entities/bank-movement.entity';
+
 @Injectable()
 export class CreateSaleUseCase {
   constructor(
@@ -131,14 +134,14 @@ export class CreateSaleUseCase {
         branch_id: branchId || null,
       }));
 
-      // Save split payments
+      // Save split payments & update Treasury
       if (dto.payments && dto.payments.length > 0) {
         for (const payment of dto.payments) {
           const amtUsd = payment.currency === 'USD'
             ? payment.amountOriginal
             : Number((payment.amountOriginal / exchangeRate).toFixed(2));
 
-          await manager.save(SalePayment, new SalePayment({
+          const savedPayment = await manager.save(SalePayment, new SalePayment({
             tenant_id: tenantId,
             sale_id: sale.id,
             payment_method: payment.paymentMethod,
@@ -147,7 +150,35 @@ export class CreateSaleUseCase {
             exchange_rate_applied: exchangeRate,
             amount_usd: amtUsd,
             transaction_reference: payment.transactionReference || null,
+            bank_account_id: payment.bankAccountId || undefined,
+            last_four_digits: payment.lastFourDigits || undefined,
+            sender_identifier: payment.senderIdentifier || undefined,
           }));
+
+          // If payment is linked to a registered bank account, adjust balance & create BankMovement
+          if (payment.bankAccountId) {
+            const bankAccount = await manager.findOne(BankAccount, {
+              where: { id: payment.bankAccountId, tenant_id: tenantId, is_active: true },
+            });
+            if (bankAccount) {
+              bankAccount.current_balance = Number(bankAccount.current_balance) + Number(payment.amountOriginal);
+              await manager.save(BankAccount, bankAccount);
+
+              const ref = payment.transactionReference || payment.lastFourDigits || `SALE-${sale.invoice_number || sale.id.slice(0, 8)}`;
+              const senderDesc = payment.senderIdentifier ? ` (Emisor: ${payment.senderIdentifier})` : '';
+
+              await manager.save(BankMovement, new BankMovement({
+                tenant_id: tenantId,
+                account_id: bankAccount.id,
+                type: 'DEPOSIT',
+                amount: Number(payment.amountOriginal),
+                reference: ref,
+                description: `Cobro Venta Factura #${sale.invoice_number || 'S/N'}${senderDesc}`,
+                created_by_user_id: userId,
+                sale_payment_id: savedPayment.id,
+              }));
+            }
+          }
         }
       } else {
         // Fallback for backward compatibility/single payment
