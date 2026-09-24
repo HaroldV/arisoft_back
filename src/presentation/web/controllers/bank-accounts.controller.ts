@@ -11,6 +11,13 @@ import { RequiredModules, AppModule } from '../../../infrastructure/auth/decorat
 import { PermissionsGuard } from '../../../infrastructure/auth/guards/permissions.guard';
 import { RequiredPermissions } from '../../../infrastructure/auth/decorators/permissions.decorator';
 
+import { Sale } from '../../../domain/entities/sale.entity';
+import { SaleItem } from '../../../domain/entities/sale-item.entity';
+import { Product } from '../../../domain/entities/product.entity';
+import { SalePayment } from '../../../domain/entities/sale-payment.entity';
+import { Client } from '../../../domain/entities/client.entity';
+import { User } from '../../../domain/entities/user.entity';
+
 export class CreateBankAccountDto {
   @IsNotEmpty()
   @IsString()
@@ -25,7 +32,7 @@ export class CreateBankAccountDto {
   account_number?: string;
 
   @IsNotEmpty()
-  @IsEnum(['CORRIENTE', 'AHORRO', 'EFECTIVO'])
+  @IsEnum(['CORRIENTE', 'AHORRO', 'EFECTIVO', 'ZELLE', 'BINANCE', 'DIGITAL'])
   account_type: string;
 
   @IsNotEmpty()
@@ -63,7 +70,7 @@ export class UpdateBankAccountDto {
   account_number?: string;
 
   @IsOptional()
-  @IsEnum(['CORRIENTE', 'AHORRO', 'EFECTIVO'])
+  @IsEnum(['CORRIENTE', 'AHORRO', 'EFECTIVO', 'ZELLE', 'BINANCE', 'DIGITAL'])
   account_type?: string;
 
   @IsOptional()
@@ -160,6 +167,143 @@ export class BankAccountsController {
     account.p2p_bank_code = dto.p2p_bank_code;
 
     return this.bankAccountRepo.save(account);
+  }
+
+  @Get('movements')
+  @RequiredModules(AppModule.POS)
+  @RequiredPermissions('banks:view')
+  @ApiOperation({ summary: 'Get all bank movements and sales ledger transactions' })
+  @ApiHeader({ name: 'x-tenant-id', required: true })
+  async getMovements(
+    @Headers('x-tenant-id') tenantId: string,
+    @Req() req: any,
+  ) {
+    this.validateTenant(tenantId, req);
+    return this.bankAccountRepo.findMovementsWithDetails();
+  }
+
+  @Get(':id/movements')
+  @RequiredModules(AppModule.POS)
+  @RequiredPermissions('banks:view')
+  @ApiOperation({ summary: 'Get movements for a specific account' })
+  @ApiHeader({ name: 'x-tenant-id', required: true })
+  async getAccountMovements(
+    @Param('id') id: string,
+    @Headers('x-tenant-id') tenantId: string,
+    @Req() req: any,
+  ) {
+    this.validateTenant(tenantId, req);
+    if (!id || !isUUID(id)) {
+      throw new BadRequestException('ID de cuenta inválido');
+    }
+    return this.bankAccountRepo.findMovementsWithDetails(id);
+  }
+
+  @Get('sales/:saleId')
+  @RequiredModules(AppModule.POS)
+  @RequiredPermissions('banks:view')
+  @ApiOperation({ summary: 'Get full sale breakdown for treasury inspection' })
+  @ApiHeader({ name: 'x-tenant-id', required: true })
+  async getSaleDetails(
+    @Param('saleId') saleId: string,
+    @Headers('x-tenant-id') tenantId: string,
+    @Req() req: any,
+  ) {
+    this.validateTenant(tenantId, req);
+    if (!saleId || !isUUID(saleId)) {
+      throw new BadRequestException('ID de venta inválido');
+    }
+
+    const sale = await this.dataSource.getRepository(Sale).findOne({
+      where: { id: saleId, tenant_id: tenantId },
+    });
+
+    if (!sale) {
+      throw new NotFoundException('Venta no encontrada');
+    }
+
+    const [saleItems, payments, client, cashier] = await Promise.all([
+      this.dataSource
+        .getRepository(SaleItem)
+        .createQueryBuilder('item')
+        .leftJoinAndMapOne('item.product', Product, 'product', 'product.id = item.product_id')
+        .where('item.sale_id = :saleId', { saleId })
+        .getMany(),
+      this.dataSource
+        .getRepository(SalePayment)
+        .createQueryBuilder('payment')
+        .leftJoinAndMapOne('payment.bank_account', BankAccount, 'bank', 'bank.id = payment.bank_account_id')
+        .where('payment.sale_id = :saleId AND payment.tenant_id = :tenantId', { saleId, tenantId })
+        .getMany(),
+      sale.client_id
+        ? this.dataSource.getRepository(Client).findOne({ where: { id: sale.client_id, tenant_id: tenantId } })
+        : null,
+      sale.user_id
+        ? this.dataSource.getRepository(User).findOne({ where: { id: sale.user_id, tenant_id: tenantId } })
+        : null,
+    ]);
+
+    const items = saleItems.map((item: any) => ({
+      id: item.id,
+      quantity: Number(item.quantity),
+      price_usd: Number(item.price_at_time_usd),
+      price_ves: Number((Number(item.price_at_time_usd) * Number(sale.exchange_rate_applied || 1)).toFixed(2)),
+      subtotal_usd: Number((Number(item.quantity) * Number(item.price_at_time_usd)).toFixed(2)),
+      subtotal_ves: Number((Number(item.quantity) * Number(item.price_at_time_usd) * Number(sale.exchange_rate_applied || 1)).toFixed(2)),
+      product: {
+        id: item.product?.id || item.product_id,
+        name: item.product?.name || 'Producto Desconocido',
+        sku: item.product?.sku || 'S/N',
+        unit_of_measure: item.product?.unit_of_measure || 'unidades',
+      },
+    }));
+
+    return {
+      sale: {
+        id: sale.id,
+        invoice_number: sale.invoice_number,
+        control_number: sale.control_number,
+        total_amount_usd: Number(sale.total_amount_usd),
+        total_amount_ves: Number((Number(sale.total_amount_usd) * Number(sale.exchange_rate_applied || 1)).toFixed(2)),
+        exchange_rate_applied: Number(sale.exchange_rate_applied || 1),
+        status: sale.status,
+        created_at: sale.created_at,
+        payment_method: sale.payment_method,
+      },
+      client: client ? {
+        id: client.id,
+        name: client.name,
+        tax_id: client.tax_id,
+        phone: client.phone,
+        email: client.email,
+        taxpayer_type: client.taxpayer_type,
+      } : null,
+      cashier: cashier ? {
+        id: cashier.id,
+        full_name: cashier.full_name,
+        email: cashier.email,
+        role: cashier.role,
+      } : null,
+      items,
+      payments: payments.map((p: any) => ({
+        id: p.id,
+        payment_method: p.payment_method,
+        currency: p.currency,
+        amount_original: Number(p.amount_original),
+        amount_usd: Number(p.amount_usd),
+        exchange_rate_applied: Number(p.exchange_rate_applied || 1),
+        last_four_digits: p.last_four_digits,
+        sender_identifier: p.sender_identifier,
+        transaction_reference: p.transaction_reference,
+        bank_account: p.bank_account ? {
+          id: p.bank_account.id,
+          name: p.bank_account.name,
+          bank_name: p.bank_account.bank_name,
+          currency: p.bank_account.currency,
+          account_type: p.bank_account.account_type,
+        } : null,
+      })),
+    };
   }
 
   @Get()

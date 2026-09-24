@@ -26,6 +26,9 @@ export class BankMovement {
   @Column({ type: 'uuid', nullable: true })
   created_by_user_id?: string;
 
+  @Column({ type: 'uuid', nullable: true })
+  sale_payment_id?: string;
+
   @CreateDateColumn()
   created_at: Date;
 
