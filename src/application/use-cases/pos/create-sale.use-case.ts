@@ -97,6 +97,30 @@ export class CreateSaleUseCase {
       );
     }
 
+    // 4.1 Validate payment lines references & sender requirements
+    if (dto.payments && dto.payments.length > 0) {
+      for (let i = 0; i < dto.payments.length; i++) {
+        const p = dto.payments[i];
+        const methodUpper = (p.paymentMethod || '').toUpperCase();
+        const isZelleOrBinance = methodUpper.includes('ZELLE') || methodUpper.includes('BINANCE');
+        const isCash = methodUpper.includes('CASH') || methodUpper.includes('EFECTIVO');
+
+        if (isZelleOrBinance) {
+          if (!p.senderIdentifier?.trim()) {
+            throw new BadRequestException(`El pago #${i + 1} (${p.paymentMethod}) requiere el correo, alias o ID del emisor.`);
+          }
+          if (!p.transactionReference?.trim()) {
+            throw new BadRequestException(`El pago #${i + 1} (${p.paymentMethod}) requiere el número de confirmación o referencia.`);
+          }
+        } else if (!isCash) {
+          const ref = p.lastFourDigits?.trim() || p.transactionReference?.trim() || '';
+          if (ref.length < 4) {
+            throw new BadRequestException(`El pago #${i + 1} (${p.paymentMethod}) requiere al menos los 4 últimos dígitos de la referencia.`);
+          }
+        }
+      }
+    }
+
     // 5. Run atomic transaction
     return this.dataSource.transaction(async (manager) => {
       // Calculate total amount
