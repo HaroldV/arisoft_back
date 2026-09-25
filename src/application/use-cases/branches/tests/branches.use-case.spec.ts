@@ -32,6 +32,7 @@ describe('BranchesUseCase (STORY-18.1)', () => {
     };
 
     const mockWarehouseRepo = {
+      find: jest.fn().mockResolvedValue([{ id: warehouseId, name: 'Almacén Central', tenant_id: tenantId }]),
       findOne: jest.fn().mockResolvedValue({ id: warehouseId, name: 'Almacén Central', tenant_id: tenantId }),
     };
 
@@ -108,6 +109,59 @@ describe('BranchesUseCase (STORY-18.1)', () => {
       await expect(
         useCase.assignWarehouse(tenantId, 'OWNER', 'branch-1', 'non-existent-warehouse')
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('Auto-provisioning & Listing (STORY-18.1)', () => {
+    it('should auto-provision Main Branch with first warehouse if tenant has 0 branches', async () => {
+      branchRepo.findByTenantId
+        .mockResolvedValueOnce([]) // First call returns 0 branches
+        .mockResolvedValueOnce([
+          new Branch({
+            id: 'branch-main',
+            tenant_id: tenantId,
+            name: 'Sede Principal',
+            code: 'MAIN',
+            is_main: true,
+            default_warehouse_id: warehouseId,
+          }),
+        ]);
+
+      const result = await useCase.listBranches(tenantId);
+      expect(branchRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Sede Principal',
+          code: 'MAIN',
+          is_main: true,
+          default_warehouse_id: warehouseId,
+        })
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Sede Principal');
+    });
+
+    it('should auto-link first warehouse to existing Main Branch if warehouse is unassigned', async () => {
+      const existingMainWithoutWh = new Branch({
+        id: 'branch-main',
+        tenant_id: tenantId,
+        name: 'Sede Principal',
+        code: 'MAIN',
+        is_main: true,
+        default_warehouse_id: undefined,
+      });
+
+      branchRepo.findByTenantId
+        .mockResolvedValueOnce([existingMainWithoutWh])
+        .mockResolvedValueOnce([{ ...existingMainWithoutWh, default_warehouse_id: warehouseId }]);
+
+      const result = await useCase.listBranches(tenantId);
+      expect(branchRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'branch-main',
+          default_warehouse_id: warehouseId,
+        })
+      );
+      expect(result[0].default_warehouse_id).toBe(warehouseId);
     });
   });
 });

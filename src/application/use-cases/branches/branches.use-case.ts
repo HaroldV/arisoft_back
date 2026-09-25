@@ -20,7 +20,44 @@ export class BranchesUseCase {
   ) {}
 
   async listBranches(tenantId: string): Promise<Branch[]> {
-    return this.branchRepo.findByTenantId(tenantId);
+    let branches = await this.branchRepo.findByTenantId(tenantId);
+
+    if (branches.length === 0) {
+      // Auto-provision initial Main Branch for tenant
+      const warehouses = await this.warehouseRepo.find({
+        where: { tenant_id: tenantId },
+        order: { created_at: 'ASC' },
+      });
+
+      const defaultWarehouseId = warehouses.length > 0 ? warehouses[0].id : undefined;
+      const defaultBranch = new Branch({
+        tenant_id: tenantId,
+        name: 'Sede Principal',
+        code: 'MAIN',
+        is_main: true,
+        is_active: true,
+        default_warehouse_id: defaultWarehouseId,
+      });
+
+      await this.branchRepo.save(defaultBranch);
+      branches = await this.branchRepo.findByTenantId(tenantId);
+    } else {
+      // If main branch exists without default warehouse, and tenant has warehouses, link it automatically
+      const mainBranch = branches.find((b) => b.is_main);
+      if (mainBranch && !mainBranch.default_warehouse_id) {
+        const warehouses = await this.warehouseRepo.find({
+          where: { tenant_id: tenantId },
+          order: { created_at: 'ASC' },
+        });
+        if (warehouses.length > 0) {
+          mainBranch.default_warehouse_id = warehouses[0].id;
+          await this.branchRepo.save(mainBranch);
+          branches = await this.branchRepo.findByTenantId(tenantId);
+        }
+      }
+    }
+
+    return branches;
   }
 
   async getBranchById(tenantId: string, id: string): Promise<Branch> {
