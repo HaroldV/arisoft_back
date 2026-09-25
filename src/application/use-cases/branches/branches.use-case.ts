@@ -21,39 +21,112 @@ export class BranchesUseCase {
 
   async listBranches(tenantId: string): Promise<Branch[]> {
     let branches = await this.branchRepo.findByTenantId(tenantId);
+    const allWarehouses = await this.warehouseRepo.find({
+      where: { tenant_id: tenantId },
+      order: { created_at: 'ASC' },
+    });
+
+    const rootWarehouses = allWarehouses.filter((w) => !w.parent_id);
+    const targetWarehouses = rootWarehouses.length > 0 ? rootWarehouses : allWarehouses;
 
     if (branches.length === 0) {
-      // Auto-provision initial Main Branch for tenant
-      const warehouses = await this.warehouseRepo.find({
-        where: { tenant_id: tenantId },
-        order: { created_at: 'ASC' },
-      });
+      if (targetWarehouses.length === 0) {
+        const defaultBranch = new Branch({
+          tenant_id: tenantId,
+          name: 'Sede Principal',
+          code: 'MAIN',
+          is_main: true,
+          is_active: true,
+        });
+        await this.branchRepo.save(defaultBranch);
+      } else {
+        for (let i = 0; i < targetWarehouses.length; i++) {
+          const wh = targetWarehouses[i];
+          const isMain = i === 0;
+          const cleanName = wh.name.trim();
+          const branchName =
+            cleanName.toLowerCase().startsWith('sede') ||
+            cleanName.toLowerCase().startsWith('sucursal')
+              ? cleanName
+              : isMain
+              ? `Sede Principal (${cleanName})`
+              : `Sede ${cleanName}`;
 
-      const defaultWarehouseId = warehouses.length > 0 ? warehouses[0].id : undefined;
-      const defaultBranch = new Branch({
-        tenant_id: tenantId,
-        name: 'Sede Principal',
-        code: 'MAIN',
-        is_main: true,
-        is_active: true,
-        default_warehouse_id: defaultWarehouseId,
-      });
+          const rawCode = isMain
+            ? 'MAIN'
+            : `SUC-${cleanName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 5) || i + 1}`;
+          const code = rawCode.slice(0, 20);
 
-      await this.branchRepo.save(defaultBranch);
+          const branch = new Branch({
+            tenant_id: tenantId,
+            name: branchName,
+            code,
+            is_main: isMain,
+            is_active: true,
+            default_warehouse_id: wh.id,
+          });
+          await this.branchRepo.save(branch);
+        }
+      }
       branches = await this.branchRepo.findByTenantId(tenantId);
     } else {
-      // If main branch exists without default warehouse, and tenant has warehouses, link it automatically
-      const mainBranch = branches.find((b) => b.is_main);
-      if (mainBranch && !mainBranch.default_warehouse_id) {
-        const warehouses = await this.warehouseRepo.find({
-          where: { tenant_id: tenantId },
-          order: { created_at: 'ASC' },
-        });
-        if (warehouses.length > 0) {
-          mainBranch.default_warehouse_id = warehouses[0].id;
-          await this.branchRepo.save(mainBranch);
-          branches = await this.branchRepo.findByTenantId(tenantId);
+      const existingWhIds = new Set(
+        branches.map((b) => b.default_warehouse_id).filter(Boolean) as string[],
+      );
+      const existingCodes = new Set(branches.map((b) => b.code.toUpperCase()));
+      let hasMutated = false;
+
+      // 1. Link unassigned branches to unassigned warehouses
+      for (const branch of branches) {
+        if (!branch.default_warehouse_id) {
+          const unassignedWh = targetWarehouses.find(
+            (w) => !existingWhIds.has(w.id),
+          );
+          if (unassignedWh) {
+            branch.default_warehouse_id = unassignedWh.id;
+            existingWhIds.add(unassignedWh.id);
+            await this.branchRepo.save(branch);
+            hasMutated = true;
+          }
         }
+      }
+
+      // 2. Auto-provision any remaining warehouses without branches
+      for (let i = 0; i < targetWarehouses.length; i++) {
+        const wh = targetWarehouses[i];
+        if (!existingWhIds.has(wh.id)) {
+          const cleanName = wh.name.trim();
+          const branchName =
+            cleanName.toLowerCase().startsWith('sede') ||
+            cleanName.toLowerCase().startsWith('sucursal')
+              ? cleanName
+              : `Sede ${cleanName}`;
+
+          const candidateCode = `SUC-${cleanName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4) || i + 1}`;
+          let finalCode = candidateCode;
+          let counter = 1;
+          while (existingCodes.has(finalCode.toUpperCase())) {
+            finalCode = `${candidateCode.slice(0, 10)}-${counter}`;
+            counter++;
+          }
+          existingCodes.add(finalCode.toUpperCase());
+
+          const newBranch = new Branch({
+            tenant_id: tenantId,
+            name: branchName,
+            code: finalCode,
+            is_main: false,
+            is_active: true,
+            default_warehouse_id: wh.id,
+          });
+          await this.branchRepo.save(newBranch);
+          existingWhIds.add(wh.id);
+          hasMutated = true;
+        }
+      }
+
+      if (hasMutated) {
+        branches = await this.branchRepo.findByTenantId(tenantId);
       }
     }
 

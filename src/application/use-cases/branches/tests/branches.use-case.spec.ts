@@ -130,7 +130,7 @@ describe('BranchesUseCase (STORY-18.1)', () => {
       const result = await useCase.listBranches(tenantId);
       expect(branchRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          name: 'Sede Principal',
+          name: expect.stringContaining('Sede Principal'),
           code: 'MAIN',
           is_main: true,
           default_warehouse_id: warehouseId,
@@ -162,6 +162,23 @@ describe('BranchesUseCase (STORY-18.1)', () => {
         })
       );
       expect(result[0].default_warehouse_id).toBe(warehouseId);
+    });
+
+    it('should auto-provision branches for all registered warehouses in Control de Almacenes', async () => {
+      const wh1 = { id: 'wh-1', name: 'Almacén Central', tenant_id: tenantId };
+      const wh2 = { id: 'wh-2', name: 'Depósito Norte', tenant_id: tenantId };
+      warehouseRepo.find.mockResolvedValue([wh1, wh2]);
+
+      branchRepo.findByTenantId
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          new Branch({ id: 'b-1', tenant_id: tenantId, name: 'Sede Principal (Almacén Central)', code: 'MAIN', is_main: true, default_warehouse_id: 'wh-1' }),
+          new Branch({ id: 'b-2', tenant_id: tenantId, name: 'Sede Depósito Norte', code: 'SUC-DEPO', is_main: false, default_warehouse_id: 'wh-2' }),
+        ]);
+
+      const result = await useCase.listBranches(tenantId);
+      expect(branchRepo.save).toHaveBeenCalledTimes(2);
+      expect(result).toHaveLength(2);
     });
   });
 });
