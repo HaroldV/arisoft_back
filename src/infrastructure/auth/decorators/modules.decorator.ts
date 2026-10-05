@@ -2,6 +2,8 @@ import { SetMetadata } from '@nestjs/common';
 
 export enum AppModule {
   POS = 'POS',
+  SALES = 'SALES',
+  INVENTORY_PURCHASES = 'INVENTORY_PURCHASES',
   INVENTORY = 'INVENTORY',
   PAYROLL = 'PAYROLL',
   WMS = 'WMS',

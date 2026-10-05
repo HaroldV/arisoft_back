@@ -61,7 +61,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 20, ttl: 900000 } }) // Allow up to 20 requests per IP per 15 min; user-level 3 attempts logic handles account locking
+  @Throttle({ default: { limit: process.env.NODE_ENV === 'production' ? 20 : 1000, ttl: 60000 } })
   @ApiOperation({ summary: 'User login with automatic tenant resolution' })
   async login(
     @Body() loginDto: LoginDto,

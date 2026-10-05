@@ -81,7 +81,7 @@ export class ProductRepository extends BaseTenantRepository<Product> {
       .createQueryBuilder('product');
 
     if (filters.warehouseId) {
-      query.leftJoin(
+      query.innerJoin(
         StockMove,
         'move',
         'move.product_id = product.id AND move.warehouse_location_id = :warehouseId',

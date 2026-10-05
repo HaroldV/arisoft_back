@@ -1,6 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
+import { PERMISSIONS_KEY, ANY_PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 import { UserRole } from '../../../domain/entities/user.entity';
 
 @Injectable()
@@ -13,7 +13,12 @@ export class PermissionsGuard implements CanActivate {
       context.getClass(),
     ]);
 
-    if (!requiredPermissions || requiredPermissions.length === 0) {
+    const anyPermissions = this.reflector.getAllAndOverride<string[]>(ANY_PERMISSIONS_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if ((!requiredPermissions || requiredPermissions.length === 0) && (!anyPermissions || anyPermissions.length === 0)) {
       return true;
     }
 
@@ -23,8 +28,8 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException('No user session found');
     }
 
-    // Owner role has absolute permissions, skip validation
-    if (user.role === UserRole.OWNER) {
+    // Owner and Super Admin roles have absolute permissions, skip validation
+    if (user.role === UserRole.OWNER || user.role === UserRole.SUPER_ADMIN) {
       return true;
     }
 
@@ -32,14 +37,25 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException('No granular permissions found in session');
     }
 
-    const hasAccess = requiredPermissions.every((perm) => 
-      user.permissions.includes(perm)
-    );
+    if (requiredPermissions && requiredPermissions.length > 0) {
+      const hasAccess = requiredPermissions.every((perm) => 
+        user.permissions.includes(perm)
+      );
+      if (!hasAccess) {
+        throw new ForbiddenException(`Insufficient permissions. Required: ${requiredPermissions.join(', ')}`);
+      }
+    }
 
-    if (!hasAccess) {
-      throw new ForbiddenException(`Insufficient permissions. Required: ${requiredPermissions.join(', ')}`);
+    if (anyPermissions && anyPermissions.length > 0) {
+      const hasAnyAccess = anyPermissions.some((perm) => 
+        user.permissions.includes(perm)
+      );
+      if (!hasAnyAccess) {
+        throw new ForbiddenException(`Insufficient permissions. Required one of: ${anyPermissions.join(', ')}`);
+      }
     }
 
     return true;
   }
 }
+

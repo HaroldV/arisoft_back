@@ -27,39 +27,41 @@ export class CashShiftRepository extends BaseTenantRepository<CashShift> {
   }
 
   async save(shift: CashShift): Promise<CashShift> {
-    shift.tenant_id = this.tenantId;
+    if (!shift.tenant_id || shift.tenant_id === BACKEND_SYSTEM_CONSTANTS.DEFAULT_SYSTEM_TENANT_ID) {
+      shift.tenant_id = this.tenantId;
+    }
     return this.cashShiftRepository.save(shift);
   }
 
-  async findById(id: string): Promise<CashShift | null> {
-    const conditions = this.enforceTenantCondition({ id });
+  async findById(id: string, tenantId?: string): Promise<CashShift | null> {
+    const targetTenantId = tenantId || this.tenantId;
     return this.cashShiftRepository.findOne({
-      where: conditions,
+      where: { id, tenant_id: targetTenantId },
       relations: ['cashier', 'branch', 'branch.default_warehouse'],
     });
   }
 
-  async findActiveShift(cashierId: string): Promise<CashShift | null> {
-    const conditions = this.enforceTenantCondition({ cashier_id: cashierId, status: CashShiftStatusEnum.OPEN });
+  async findActiveShift(cashierId: string, tenantId?: string): Promise<CashShift | null> {
+    const targetTenantId = tenantId || this.tenantId;
     return this.cashShiftRepository.findOne({
-      where: conditions,
+      where: { cashier_id: cashierId, tenant_id: targetTenantId, status: CashShiftStatusEnum.OPEN },
       relations: ['cashier', 'branch', 'branch.default_warehouse'],
     });
   }
 
-  async findLastClosedShift(): Promise<CashShift | null> {
-    const conditions = this.enforceTenantCondition({ status: CashShiftStatusEnum.CLOSED });
+  async findLastClosedShift(tenantId?: string): Promise<CashShift | null> {
+    const targetTenantId = tenantId || this.tenantId;
     return this.cashShiftRepository.findOne({
-      where: conditions,
+      where: { tenant_id: targetTenantId, status: CashShiftStatusEnum.CLOSED },
       relations: ['cashier', 'branch'],
       order: { closed_at: 'DESC' },
     });
   }
 
-  async findAllShifts(): Promise<CashShift[]> {
-    const conditions = this.enforceTenantCondition({});
+  async findAllShifts(tenantId?: string): Promise<CashShift[]> {
+    const targetTenantId = tenantId || this.tenantId;
     return this.cashShiftRepository.find({
-      where: conditions,
+      where: { tenant_id: targetTenantId },
       relations: ['cashier', 'branch', 'branch.default_warehouse'],
       order: { opened_at: 'DESC' },
     });

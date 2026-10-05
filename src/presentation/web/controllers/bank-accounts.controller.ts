@@ -9,7 +9,7 @@ import { JwtAuthGuard } from '../../../infrastructure/auth/guards/jwt-auth.guard
 import { ModulesGuard } from '../../../infrastructure/auth/guards/modules.guard';
 import { RequiredModules, AppModule } from '../../../infrastructure/auth/decorators/modules.decorator';
 import { PermissionsGuard } from '../../../infrastructure/auth/guards/permissions.guard';
-import { RequiredPermissions } from '../../../infrastructure/auth/decorators/permissions.decorator';
+import { RequiredPermissions, RequireAnyPermissions } from '../../../infrastructure/auth/decorators/permissions.decorator';
 
 import { Sale } from '../../../domain/entities/sale.entity';
 import { SaleItem } from '../../../domain/entities/sale-item.entity';
@@ -308,7 +308,7 @@ export class BankAccountsController {
 
   @Get()
   @RequiredModules(AppModule.POS)
-  @RequiredPermissions('banks:view')
+  @RequireAnyPermissions('banks:view', 'banks:accounts', 'pos:create')
   @ApiOperation({ summary: 'Get all bank accounts' })
   @ApiHeader({ name: 'x-tenant-id', required: true })
   async findAll(

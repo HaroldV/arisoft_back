@@ -105,6 +105,8 @@ export class RefreshTokenUseCase {
       'inventory:categories': 'INVENTORY',
       'inventory:moves': 'INVENTORY',
       'banks:accounts': 'BANKS',
+      'banks:ledger': 'BANKS',
+      'banks:shifts': 'BANKS',
       'accounts:receivables': 'BANKS',
       'accounts:payables': 'BANKS',
       'accounts:history': 'BANKS',
@@ -113,6 +115,7 @@ export class RefreshTokenUseCase {
       'company:manage': 'SETTINGS',
       'fiscal:manage': 'SETTINGS',
       'users:manage': 'SETTINGS',
+      'branches:manage': 'SETTINGS',
     };
 
     let enabledModules = tenantModules;
