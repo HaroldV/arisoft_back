@@ -129,6 +129,7 @@ export const PLAN_DEFAULT_PERMISSIONS: Record<SaasPlanEnum, string[]> = {
     'inventory:categories',
     // 4. Módulo Cuentas (BANKS)
     'banks:accounts',
+    'banks:ledger',
     // 5. Módulo Configuración de Empresa (SETTINGS)
     'company:manage',
     'fiscal:manage',
@@ -158,6 +159,8 @@ export const PLAN_DEFAULT_PERMISSIONS: Record<SaasPlanEnum, string[]> = {
     'inventory:categories',
     'inventory:moves',
     'banks:accounts',
+    'banks:ledger',
+    'banks:shifts',
     'accounts:receivables',
     'accounts:payables',
     'accounts:history',
@@ -190,6 +193,8 @@ export const PLAN_DEFAULT_PERMISSIONS: Record<SaasPlanEnum, string[]> = {
     'inventory:categories',
     'inventory:moves',
     'banks:accounts',
+    'banks:ledger',
+    'banks:shifts',
     'accounts:receivables',
     'accounts:payables',
     'accounts:history',

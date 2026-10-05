@@ -7,14 +7,14 @@ export class GetActiveShiftUseCase {
     private readonly cashShiftRepo: CashShiftRepository,
   ) {}
 
-  async execute(userId: string) {
-    const active = await this.cashShiftRepo.findActiveShift(userId);
+  async execute(userId: string, tenantId?: string) {
+    const active = await this.cashShiftRepo.findActiveShift(userId, tenantId);
     if (active) {
       return { active: true, shift: active };
     }
 
     // Suggested opening balance from the last closed shift of this tenant
-    const lastClosed = await this.cashShiftRepo.findLastClosedShift();
+    const lastClosed = await this.cashShiftRepo.findLastClosedShift(tenantId);
     return {
       active: false,
       suggestedOpeningUsd: lastClosed ? Number(lastClosed.declared_cash_usd) : 0.00,

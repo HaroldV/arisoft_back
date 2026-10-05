@@ -4,6 +4,7 @@ import { TenantRepository } from '../../../infrastructure/persistence/typeorm/re
 import { AuthService } from '../auth/auth.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User, UserRole } from '../../../domain/entities/user.entity';
+import { SaasPlanEnum, PLAN_DEFAULT_MODULES, PLAN_DEFAULT_PERMISSIONS } from '../../../domain/constants/domain.constants';
 
 @Injectable()
 export class UpdateUserUseCase {
@@ -61,20 +62,45 @@ export class UpdateUserUseCase {
     // 5. Validate module permission updates
     const permissionToModuleMap: Record<string, string> = {
       'pos:create': 'POS',
+      'sales:invoicing': 'POS',
+      'sales:quotations': 'SALES',
+      'sales:orders': 'SALES',
+      'sales:deliveries': 'SALES',
+      'clients:manage': 'POS',
+      'pos:shifts': 'POS',
       'pos:discount': 'POS',
       'pos:refund': 'POS',
-      'clients:manage': 'POS',
+      'purchases:new': 'INVENTORY_PURCHASES',
+      'purchases:orders': 'INVENTORY_PURCHASES',
+      'purchases:receptions': 'INVENTORY_PURCHASES',
+      'purchases:invoices': 'INVENTORY_PURCHASES',
+      'purchases:register': 'INVENTORY_PURCHASES',
+      'providers:manage': 'INVENTORY_PURCHASES',
+      'inventory:create': 'INVENTORY',
       'inventory:view': 'INVENTORY',
       'inventory:write': 'INVENTORY',
+      'inventory:stock': 'INVENTORY',
+      'inventory:bulk_prices': 'INVENTORY',
+      'inventory:valuation': 'INVENTORY',
+      'inventory:warehouse': 'INVENTORY',
+      'inventory:categories': 'INVENTORY',
+      'inventory:moves': 'INVENTORY',
       'inventory:adjust': 'INVENTORY',
-      'purchases:register': 'INVENTORY',
-      'providers:manage': 'INVENTORY',
+      'banks:accounts': 'BANKS',
+      'banks:ledger': 'BANKS',
+      'banks:shifts': 'BANKS',
       'banks:view': 'BANKS',
       'banks:write': 'BANKS',
       'banks:transfer': 'BANKS',
-      'users:manage': 'SETTINGS',
-      'fiscal:manage': 'SETTINGS',
+      'accounts:receivables': 'BANKS',
+      'accounts:payables': 'BANKS',
+      'accounts:history': 'BANKS',
+      'payroll:manage': 'PAYROLL',
+      'reports:view': 'REPORTS',
       'company:manage': 'SETTINGS',
+      'fiscal:manage': 'SETTINGS',
+      'users:manage': 'SETTINGS',
+      'branches:manage': 'SETTINGS',
     };
 
     if (dto.allowed_permissions && (!dto.allowed_modules || dto.allowed_modules.length === 0)) {
@@ -91,7 +117,9 @@ export class UpdateUserUseCase {
       if (!tenant) {
         throw new BadRequestException('Tenant not found');
       }
-      const tenantModules = tenant.settings?.enabled_modules || ['POS', 'INVENTORY', 'SETTINGS', 'BANKS', 'PAYROLL'];
+      const planCode = (tenant.plan_type as SaasPlanEnum) || SaasPlanEnum.COMERCIAL_PRO;
+      const defaultPlanModules = PLAN_DEFAULT_MODULES[planCode] || PLAN_DEFAULT_MODULES[SaasPlanEnum.COMERCIAL_PRO];
+      const tenantModules = tenant.settings?.enabled_modules || defaultPlanModules;
       
       const creatorAllowedModules = updater.role === UserRole.OWNER 
         ? tenantModules 
@@ -100,7 +128,7 @@ export class UpdateUserUseCase {
       const invalidModules = dto.allowed_modules.filter(mod => !creatorAllowedModules.includes(mod));
       if (invalidModules.length > 0) {
         throw new BadRequestException(
-          `Cannot delegate access to modules: ${invalidModules.join(', ')}. You do not have access to these modules.`
+          `No puedes delegar acceso a los módulos: ${invalidModules.join(', ')}. Estos módulos no están incluidos en tu plan actual (${planCode}). Para habilitarlos, actualiza tu suscripción al Plan Comercial Pro o Corporativo.`
         );
       }
     }
@@ -111,7 +139,7 @@ export class UpdateUserUseCase {
       const invalidPermissions = dto.allowed_permissions.filter(perm => !creatorAllowedPermissions.includes(perm));
       if (invalidPermissions.length > 0) {
         throw new BadRequestException(
-          `Cannot delegate access to permissions: ${invalidPermissions.join(', ')}. You do not have access to these permissions.`
+          `No puedes delegar permisos no asignados a tu cuenta: ${invalidPermissions.join(', ')}.`
         );
       }
     }

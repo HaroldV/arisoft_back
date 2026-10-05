@@ -84,6 +84,8 @@ export class CreateUserUseCase {
       'inventory:moves': 'INVENTORY',
       'inventory:adjust': 'INVENTORY',
       'banks:accounts': 'BANKS',
+      'banks:ledger': 'BANKS',
+      'banks:shifts': 'BANKS',
       'banks:view': 'BANKS',
       'banks:write': 'BANKS',
       'banks:transfer': 'BANKS',
@@ -95,6 +97,7 @@ export class CreateUserUseCase {
       'company:manage': 'SETTINGS',
       'fiscal:manage': 'SETTINGS',
       'users:manage': 'SETTINGS',
+      'branches:manage': 'SETTINGS',
     };
 
     if ((!dto.allowed_modules || dto.allowed_modules.length === 0) && dto.allowed_permissions) {
@@ -121,7 +124,7 @@ export class CreateUserUseCase {
     const invalidModules = dto.allowed_modules.filter(mod => !creatorAllowedModules.includes(mod));
     if (invalidModules.length > 0) {
       throw new BadRequestException(
-        `Cannot delegate access to modules: ${invalidModules.join(', ')}. You do not have access to these modules.`
+        `No puedes delegar acceso a los módulos: ${invalidModules.join(', ')}. Estos módulos no están incluidos en tu plan actual (${planCode}). Para habilitarlos, actualiza tu suscripción al Plan Comercial Pro o Corporativo.`
       );
     }
 
@@ -135,7 +138,7 @@ export class CreateUserUseCase {
       const invalidPermissions = dto.allowed_permissions.filter(perm => !creatorAllowedPermissions.includes(perm));
       if (invalidPermissions.length > 0) {
         throw new BadRequestException(
-          `Cannot delegate access to permissions: ${invalidPermissions.join(', ')}. You do not have access to these permissions.`
+          `No puedes delegar permisos no asignados a tu cuenta: ${invalidPermissions.join(', ')}.`
         );
       }
     }

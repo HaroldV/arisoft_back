@@ -45,7 +45,7 @@ describe('CashShiftsController', () => {
 
     const result = await controller.getActiveShift(mockRequest);
 
-    expect(getActiveShiftUseCase.execute).toHaveBeenCalledWith(userId);
+    expect(getActiveShiftUseCase.execute).toHaveBeenCalledWith(userId, tenantId);
     expect(result).toEqual({ active: true });
   });
 
@@ -62,7 +62,8 @@ describe('CashShiftsController', () => {
   });
 
   it('should fail to open shift if tenantId in header does not match authenticated user tenant_id', async () => {
-    const mockRequest = { user: { id: userId, tenant_id: 'other-tenant-id' } };
+    const otherTenantId = 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33';
+    const mockRequest = { user: { id: userId, tenant_id: otherTenantId } };
     const dto = { openingBalanceUsd: 10.00 };
 
     await expect(controller.openShift(tenantId, mockRequest, dto)).rejects.toThrow(

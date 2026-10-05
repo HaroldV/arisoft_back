@@ -1,4 +1,5 @@
 import { IsOptional, IsNumber, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class OpenShiftDto {
@@ -9,6 +10,7 @@ export class OpenShiftDto {
     default: 0.00,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @Min(0)
   openingBalanceUsd?: number;
@@ -20,6 +22,7 @@ export class OpenShiftDto {
     default: 0.00,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @Min(0)
   openingBalanceVes?: number;

@@ -94,8 +94,12 @@ export class LoginUseCase {
       : (user.allowed_permissions && user.allowed_permissions.length > 0)
         ? user.allowed_permissions
         : (user.role === UserRole.OWNER)
-          ? (tenant?.settings?.enabled_permissions || defaultOwnerPermissions)
-          : rolePermissions;
+          ? (tenant?.settings?.enabled_permissions && Array.isArray(tenant.settings.enabled_permissions)
+            ? tenant.settings.enabled_permissions
+            : defaultOwnerPermissions)
+          : (rolePermissions && rolePermissions.length > 0)
+            ? rolePermissions
+            : [];
 
     // Resolve enabled modules dynamically from resolved permissions
     const permissionToModuleMap: Record<string, string> = {
@@ -122,6 +126,8 @@ export class LoginUseCase {
       'inventory:categories': 'INVENTORY',
       'inventory:moves': 'INVENTORY',
       'banks:accounts': 'BANKS',
+      'banks:ledger': 'BANKS',
+      'banks:shifts': 'BANKS',
       'accounts:receivables': 'BANKS',
       'accounts:payables': 'BANKS',
       'accounts:history': 'BANKS',

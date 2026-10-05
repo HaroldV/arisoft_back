@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsNumber, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CloseShiftDto {
@@ -8,6 +9,7 @@ export class CloseShiftDto {
     required: true,
   })
   @IsNotEmpty()
+  @Type(() => Number)
   @IsNumber()
   @Min(0)
   declaredCashUsd: number;
@@ -18,6 +20,7 @@ export class CloseShiftDto {
     required: true,
   })
   @IsNotEmpty()
+  @Type(() => Number)
   @IsNumber()
   @Min(0)
   declaredCashVes: number;

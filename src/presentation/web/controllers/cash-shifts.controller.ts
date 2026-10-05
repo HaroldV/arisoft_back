@@ -33,7 +33,9 @@ export class CashShiftsController {
   @RequiredPermissions('pos:create')
   @ApiOperation({ summary: 'Get active cash shift for the cashier' })
   async getActiveShift(@Req() req: any) {
-    return this.getActiveShiftUseCase.execute(req.user.id);
+    const tenantId = req.user?.tenant_id || req.headers?.['x-tenant-id'];
+    const userId = req.user?.id || req.user?.userId || req.user?.sub;
+    return this.getActiveShiftUseCase.execute(userId, tenantId);
   }
 
   @Post('open')
@@ -46,13 +48,15 @@ export class CashShiftsController {
     @Req() req: any,
     @Body() dto: OpenShiftDto,
   ) {
-    if (!tenantId || !isUUID(tenantId)) {
-      throw new BadRequestException('x-tenant-id must be a valid UUID');
+    const effectiveTenantId = req.user?.tenant_id || tenantId;
+    if (!effectiveTenantId || !isUUID(effectiveTenantId)) {
+      throw new BadRequestException('tenant_id must be a valid UUID');
     }
-    if (tenantId !== req.user.tenant_id) {
+    if (tenantId && req.user?.tenant_id && tenantId !== req.user.tenant_id) {
       throw new ForbiddenException('Tenant ID does not match authenticated session');
     }
-    return this.openShiftUseCase.execute(tenantId, req.user.id, dto);
+    const userId = req.user?.id || req.user?.userId || req.user?.sub;
+    return this.openShiftUseCase.execute(effectiveTenantId, userId, dto);
   }
 
   @Post('close')
@@ -71,7 +75,8 @@ export class CashShiftsController {
     if (tenantId !== req.user.tenant_id) {
       throw new ForbiddenException('Tenant ID does not match authenticated session');
     }
-    return this.closeShiftUseCase.execute(tenantId, req.user.id, dto);
+    const userId = req.user?.id || req.user?.userId || req.user?.sub;
+    return this.closeShiftUseCase.execute(tenantId, userId, dto);
   }
 
   @Post(':id/approve')
@@ -92,7 +97,8 @@ export class CashShiftsController {
     if (req.user.role !== UserRole.OWNER && req.user.role !== UserRole.MANAGER) {
       throw new ForbiddenException('Solo propietarios o supervisores pueden aprobar cierres de caja');
     }
-    return this.approveShiftUseCase.execute(tenantId, req.user.id, shiftId);
+    const userId = req.user?.id || req.user?.userId || req.user?.sub;
+    return this.approveShiftUseCase.execute(tenantId, userId, shiftId);
   }
 
   @Get(':id/details')

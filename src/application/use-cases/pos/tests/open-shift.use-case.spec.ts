@@ -47,7 +47,7 @@ describe('OpenShiftUseCase', () => {
 
     const result = await useCase.execute(tenantId, cashierId, dto);
 
-    expect(cashShiftRepo.findActiveShift).toHaveBeenCalledWith(cashierId);
+    expect(cashShiftRepo.findActiveShift).toHaveBeenCalledWith(cashierId, tenantId);
     expect(cashShiftRepo.save).toHaveBeenCalled();
     expect(result.id).toBe('saved-shift-id');
     expect(result.opening_balance_usd).toBe(100.00);
@@ -55,6 +55,24 @@ describe('OpenShiftUseCase', () => {
     expect(result.expected_cash_usd).toBe(100.00);
     expect(result.expected_cash_ves).toBe(500.00);
     expect(result.status).toBe('OPEN');
+  });
+
+  it('should handle zero and decimal opening funds properly', async () => {
+    cashShiftRepo.findActiveShift.mockResolvedValue(null);
+    cashShiftRepo.save.mockImplementation(async (shift) => ({
+      ...shift,
+      id: 'saved-shift-zero',
+    } as any));
+
+    const dto = {
+      openingBalanceUsd: 15.50,
+      openingBalanceVes: 0.00,
+    };
+
+    const result = await useCase.execute(tenantId, cashierId, dto);
+    expect(result.opening_balance_usd).toBe(15.50);
+    expect(result.opening_balance_ves).toBe(0.00);
+    expect(result.expected_cash_usd).toBe(15.50);
   });
 
   it('should throw BadRequestException if the cashier already has an active shift', async () => {
@@ -72,7 +90,7 @@ describe('OpenShiftUseCase', () => {
       BadRequestException,
     );
 
-    expect(cashShiftRepo.findActiveShift).toHaveBeenCalledWith(cashierId);
+    expect(cashShiftRepo.findActiveShift).toHaveBeenCalledWith(cashierId, tenantId);
     expect(cashShiftRepo.save).not.toHaveBeenCalled();
   });
 });
