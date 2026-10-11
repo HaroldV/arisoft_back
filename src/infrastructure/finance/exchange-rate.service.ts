@@ -5,7 +5,7 @@ import { ExchangeRateHistoryRepository } from '../persistence/typeorm/repositori
 
 export interface CurrencyRateDetail {
   rate: number;
-  code: 'USD' | 'EUR';
+  code: 'USD' | 'EUR' | 'USDT';
   symbol: string;
   name: string;
 }
@@ -13,6 +13,7 @@ export interface CurrencyRateDetail {
 export interface DualMasterBcvRateData {
   USD: CurrencyRateDetail;
   EUR: CurrencyRateDetail;
+  BINANCE?: CurrencyRateDetail;
   source: 'AUTO_SCRAPING' | 'MANUAL' | 'INITIAL_SEED' | 'FALLBACK';
   updated_at: string;
   value_date?: string;
@@ -30,7 +31,7 @@ export class ExchangeRateService {
   ) {}
 
   /**
-   * Obtiene la matriz de tasas vigentes (USD y EUR).
+   * Obtiene la matriz de tasas vigentes (USD, EUR y Binance P2P USDT si está disponible).
    */
   async getCurrentMasterRate(): Promise<DualMasterBcvRateData> {
     try {
@@ -50,6 +51,19 @@ export class ExchangeRateService {
             symbol: '€',
             name: 'Euro',
           },
+          BINANCE: val.BINANCE
+            ? {
+                rate: Number(val.BINANCE?.rate) || 1013.50,
+                code: 'USDT',
+                symbol: '₮',
+                name: 'Binance P2P (USDT/VES)',
+              }
+            : {
+                rate: 1013.50,
+                code: 'USDT',
+                symbol: '₮',
+                name: 'Binance P2P (USDT/VES)',
+              },
           source: val.source || 'SAVED_STATE',
           updated_at: val.updated_at || setting.updated_at?.toISOString() || new Date().toISOString(),
           value_date: val.value_date,
@@ -63,6 +77,7 @@ export class ExchangeRateService {
     return {
       USD: { rate: 772.54, code: 'USD', symbol: '$', name: 'Dólar Estadounidense' },
       EUR: { rate: 894.49, code: 'EUR', symbol: '€', name: 'Euro' },
+      BINANCE: { rate: 1013.50, code: 'USDT', symbol: '₮', name: 'Binance P2P (USDT/VES)' },
       source: 'FALLBACK',
       updated_at: new Date().toISOString(),
       execution_slot: 'MORNING',
@@ -72,11 +87,12 @@ export class ExchangeRateService {
   /**
    * Registra manualmente la tasa de USD, EUR o ambas
    */
-  async setManualMasterRate(rates: { usdRate?: number; eurRate?: number }, valueDate?: string, note?: string): Promise<DualMasterBcvRateData> {
+  async setManualMasterRate(rates: { usdRate?: number; eurRate?: number; binanceRate?: number }, valueDate?: string, note?: string): Promise<DualMasterBcvRateData> {
     const current = await this.getCurrentMasterRate();
 
     const cleanUsd = rates.usdRate !== undefined ? Number(Number(rates.usdRate).toFixed(4)) : current.USD.rate;
     const cleanEur = rates.eurRate !== undefined ? Number(Number(rates.eurRate).toFixed(4)) : current.EUR.rate;
+    const cleanBinance = rates.binanceRate !== undefined ? Number(Number(rates.binanceRate).toFixed(4)) : (current.BINANCE?.rate || 1013.50);
 
     if (cleanUsd <= 0 || cleanEur <= 0 || isNaN(cleanUsd) || isNaN(cleanEur)) {
       throw new Error('Las tasas deben ser números positivos mayores a cero');
@@ -85,6 +101,7 @@ export class ExchangeRateService {
     const payload: DualMasterBcvRateData = {
       USD: { rate: cleanUsd, code: 'USD', symbol: '$', name: 'Dólar Estadounidense' },
       EUR: { rate: cleanEur, code: 'EUR', symbol: '€', name: 'Euro' },
+      BINANCE: { rate: cleanBinance, code: 'USDT', symbol: '₮', name: 'Binance P2P (USDT/VES)' },
       source: 'MANUAL',
       updated_at: new Date().toISOString(),
       value_date: valueDate || new Date().toISOString().split('T')[0],
@@ -95,22 +112,40 @@ export class ExchangeRateService {
     await this.exchangeRateHistoryRepository.record('USD', cleanUsd, 'MANUAL', 'MANUAL_OVERRIDE', payload.value_date);
     await this.exchangeRateHistoryRepository.record('EUR', cleanEur, 'MANUAL', 'MANUAL_OVERRIDE', payload.value_date);
 
-    this.logger.log(`Manual Master BCV Rates saved: USD = ${cleanUsd}, EUR = ${cleanEur}`);
+    this.logger.log(`Manual Master BCV Rates saved: USD = ${cleanUsd}, EUR = ${cleanEur}, BINANCE = ${cleanBinance}`);
     return payload;
   }
 
   /**
-   * Realiza scraping en vivo a bcv.org.ve para USD y EUR, guarda en settings e histórico.
+   * Realiza scraping en vivo a bcv.org.ve para USD y EUR, y a Binance P2P para USDT/VES.
+   * Guarda en settings e histórico.
    */
   async getOfficialBcvRate(slotOverride?: 'MORNING' | 'EVENING'): Promise<DualMasterBcvRateData> {
     try {
       const scraped = await this.scrapeBcvWebsite(slotOverride);
       if (scraped && scraped.USD.rate > 0 && scraped.EUR.rate > 0) {
+        // Consultar tasa Binance P2P en paralelo
+        try {
+          const binanceRate = await this.scrapeBinanceP2pRate();
+          if (binanceRate > 0) {
+            scraped.BINANCE = {
+              rate: binanceRate,
+              code: 'USDT',
+              symbol: '₮',
+              name: 'Binance P2P (USDT/VES)',
+            };
+          }
+        } catch (binanceErr: any) {
+          this.logger.warn(`Could not fetch live Binance P2P rate: ${binanceErr.message}. Keeping cached/fallback.`);
+          const current = await this.getCurrentMasterRate();
+          if (current.BINANCE) scraped.BINANCE = current.BINANCE;
+        }
+
         await this.saveMasterRateToDb(scraped);
         await this.exchangeRateHistoryRepository.record('USD', scraped.USD.rate, 'AUTO_SCRAPING', scraped.execution_slot, scraped.value_date);
         await this.exchangeRateHistoryRepository.record('EUR', scraped.EUR.rate, 'AUTO_SCRAPING', scraped.execution_slot, scraped.value_date);
 
-        this.logger.log(`Official Dual BCV Rates fetched: USD=${scraped.USD.rate}, EUR=${scraped.EUR.rate}`);
+        this.logger.log(`Official Dual BCV & Binance Rates fetched: USD=${scraped.USD.rate}, EUR=${scraped.EUR.rate}, BINANCE=${scraped.BINANCE?.rate ?? 'N/A'}`);
         return scraped;
       }
     } catch (error: any) {
@@ -118,6 +153,76 @@ export class ExchangeRateService {
     }
 
     return this.getCurrentMasterRate();
+  }
+
+  /**
+   * Consulta el precio promedio de mercado Binance P2P (USDT/VES)
+   */
+  async scrapeBinanceP2pRate(): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const postData = JSON.stringify({
+        asset: 'USDT',
+        fiat: 'VES',
+        merchantCheck: false,
+        page: 1,
+        payTypes: [],
+        publisherType: null,
+        rows: 10,
+        tradeType: 'BUY',
+      });
+
+      const options: https.RequestOptions = {
+        hostname: 'p2p.binance.com',
+        port: 443,
+        path: '/bapi/c2c/v2/friendly/c2c/adv/search',
+        method: 'POST',
+        timeout: 8000,
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData),
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json',
+        },
+      };
+
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.setEncoding('utf8');
+
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            const items = parsed.data || [];
+            const prices = items
+              .map((item: any) => parseFloat(item.adv?.price))
+              .filter((price: number) => !isNaN(price) && price > 0);
+
+            if (prices.length > 0) {
+              const avg = prices.reduce((acc: number, val: number) => acc + val, 0) / prices.length;
+              resolve(Number(avg.toFixed(2)));
+              return;
+            }
+
+            reject(new Error('No ads found in Binance P2P response'));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      });
+
+      req.on('error', (err) => reject(err));
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Timeout connecting to Binance P2P API'));
+      });
+
+      req.write(postData);
+      req.end();
+    });
   }
 
   /**

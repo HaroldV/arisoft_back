@@ -514,10 +514,11 @@ export class SuperAdminController {
   }
 
   @Post('bcv/manual')
-  @ApiOperation({ summary: 'Registrar o corregir manualmente las Tasas Maestras Globales BCV (USD / EUR)' })
+  @ApiOperation({ summary: 'Registrar o corregir manualmente las Tasas Maestras Globales (USD / EUR / BINANCE)' })
   async setManualBcvRate(@Body() body: any) {
     const usdRate = body?.usd_rate !== undefined ? Number(body.usd_rate) : (body?.rate !== undefined ? Number(body.rate) : undefined);
     const eurRate = body?.eur_rate !== undefined ? Number(body.eur_rate) : undefined;
+    const binanceRate = body?.binance_rate !== undefined ? Number(body.binance_rate) : undefined;
     const valueDate = body?.value_date;
     const note = body?.note;
 
@@ -527,16 +528,20 @@ export class SuperAdminController {
     if (eurRate !== undefined && (isNaN(eurRate) || eurRate <= 0)) {
       throw new BadRequestException('La tasa EUR debe ser un número positivo mayor a cero (ej. 894.49)');
     }
+    if (binanceRate !== undefined && (isNaN(binanceRate) || binanceRate <= 0)) {
+      throw new BadRequestException('La tasa Binance P2P debe ser un número positivo mayor a cero (ej. 1013.50)');
+    }
 
-    const saved = await this.exchangeRateService.setManualMasterRate({ usdRate, eurRate }, valueDate, note);
+    const saved = await this.exchangeRateService.setManualMasterRate({ usdRate, eurRate, binanceRate }, valueDate, note);
     return {
       rates: saved,
       USD: saved.USD,
       EUR: saved.EUR,
+      BINANCE: saved.BINANCE,
       source: saved.source,
       updated_at: saved.updated_at,
       value_date: saved.value_date,
-      message: `Tasas Maestras actualizadas manualmente: USD Bs. ${saved.USD.rate.toFixed(2)} | EUR Bs. ${saved.EUR.rate.toFixed(2)}`,
+      message: `Tasas Maestras actualizadas manualmente: USD Bs. ${saved.USD.rate.toFixed(2)} | EUR Bs. ${saved.EUR.rate.toFixed(2)}${saved.BINANCE ? ` | Binance Bs. ${saved.BINANCE.rate.toFixed(2)}` : ''}`,
     };
   }
 
