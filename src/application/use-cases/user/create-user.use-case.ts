@@ -29,12 +29,20 @@ export class CreateUserUseCase {
       throw new ForbiddenException('Managers cannot create Owner users');
     }
 
-    const email = dto.email.toLowerCase().trim();
+    const username = dto.username.toLowerCase().trim();
+    const email = dto.email ? dto.email.toLowerCase().trim() : undefined;
 
     // 3. Validate uniqueness
-    const existingUser = await this.userRepository.findByEmail(email);
-    if (existingUser) {
-      throw new ConflictException(`User with email ${email} is already registered`);
+    const existingUsername = await this.userRepository.findByUsernameAndTenant(username, creator.tenant_id);
+    if (existingUsername) {
+      throw new ConflictException(`El nombre de usuario "${username}" ya está registrado en tu empresa`);
+    }
+
+    if (email) {
+      const existingEmail = await this.userRepository.findByEmail(email);
+      if (existingEmail) {
+        throw new ConflictException(`User with email ${email} is already registered`);
+      }
     }
 
     const tenant = await this.tenantRepository.findById(creator.tenant_id);
@@ -150,7 +158,8 @@ export class CreateUserUseCase {
     const newUser = new User({
       tenant_id: creator.tenant_id,
       full_name: dto.full_name,
-      email,
+      username,
+      email: email || undefined,
       password_hash: passwordHash,
       role: dto.role,
       role_id: dto.role_id || null,

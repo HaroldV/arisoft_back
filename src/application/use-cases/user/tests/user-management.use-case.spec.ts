@@ -71,6 +71,7 @@ describe('User Hierarchical Management Use Cases', () => {
 
     const mockUserRepository = {
       findByEmail: jest.fn(),
+      findByUsernameAndTenant: jest.fn().mockResolvedValue(null),
       findById: jest.fn(),
       save: jest.fn().mockImplementation((user) => Promise.resolve(user)),
       findAllByTenant: jest.fn().mockResolvedValue([mockOwner, mockManager, mockCashier]),
@@ -128,6 +129,7 @@ describe('User Hierarchical Management Use Cases', () => {
           },
           {
             full_name: 'Third User Attempt',
+            username: 'thirduser',
             email: 'third@ari.com',
             password: 'password123',
             role: UserRole.CASHIER,
@@ -157,6 +159,7 @@ describe('User Hierarchical Management Use Cases', () => {
         },
         {
           full_name: 'New Manager',
+          username: 'newmanager',
           email: 'new-manager@ari.com',
           password: 'password123',
           role: UserRole.MANAGER,
@@ -190,6 +193,7 @@ describe('User Hierarchical Management Use Cases', () => {
         },
         {
           full_name: 'New Cashier',
+          username: 'newcashier',
           email: 'new-cashier@ari.com',
           password: 'password123',
           role: UserRole.CASHIER,
@@ -217,6 +221,7 @@ describe('User Hierarchical Management Use Cases', () => {
           },
           {
             full_name: 'New Cashier',
+            username: 'newcashier2',
             email: 'new-cashier@ari.com',
             password: 'password123',
             role: UserRole.CASHIER,
@@ -239,6 +244,7 @@ describe('User Hierarchical Management Use Cases', () => {
           },
           {
             full_name: 'Sub Cashier',
+            username: 'subcashier',
             email: 'sub-cashier@ari.com',
             password: 'password123',
             role: UserRole.CASHIER,

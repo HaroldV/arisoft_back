@@ -13,11 +13,21 @@ export class CreateUserDto {
   full_name: string;
 
   @ApiProperty({
-    description: 'Correo electrónico único de inicio de sesión',
-    example: 'carlos@ari.com',
+    description: 'Nombre de usuario único para la empresa',
+    example: 'carlos123',
   })
+  @IsNotEmpty()
+  @IsString()
+  username: string;
+
+  @ApiProperty({
+    description: 'Correo electrónico del usuario (opcional)',
+    example: 'carlos@ari.com',
+    required: false,
+  })
+  @IsOptional()
   @IsEmail()
-  email: string;
+  email?: string;
 
   @ApiProperty({
     description: 'Contraseña para la cuenta del usuario',

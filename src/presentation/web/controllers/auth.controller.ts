@@ -6,6 +6,8 @@ import { JwtAuthGuard } from '../../../infrastructure/auth/guards/jwt-auth.guard
 import { ChangeInitialPasswordUseCase } from '../../../application/use-cases/auth/change-initial-password.use-case';
 import { LoginUseCase } from '../../../application/use-cases/auth/login.use-case';
 import { LoginDto } from '../../../application/use-cases/auth/login.dto';
+import { EmployeeLoginUseCase } from '../../../application/use-cases/auth/employee-login.use-case';
+import { EmployeeLoginDto } from '../../../application/use-cases/auth/employee-login.dto';
 import { RegisterTenantUseCase } from '../../../application/use-cases/tenant/register-tenant.use-case';
 import { RegisterTenantDto } from '../../../application/use-cases/tenant/register-tenant.dto';
 import { ForgotPasswordUseCase } from '../../../application/use-cases/auth/forgot-password.use-case';
@@ -21,6 +23,7 @@ import { ExchangeRateService } from '../../../infrastructure/finance/exchange-ra
 export class AuthController {
   constructor(
     private readonly loginUseCase: LoginUseCase,
+    private readonly employeeLoginUseCase: EmployeeLoginUseCase,
     private readonly registerTenantUseCase: RegisterTenantUseCase,
     private readonly forgotPasswordUseCase: ForgotPasswordUseCase,
     private readonly resetPasswordUseCase: ResetPasswordUseCase,
@@ -62,13 +65,34 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: process.env.NODE_ENV === 'production' ? 20 : 1000, ttl: 60000 } })
-  @ApiOperation({ summary: 'User login with automatic tenant resolution' })
+  @ApiOperation({ summary: 'Owner / SaaS User login with email' })
   async login(
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) response: Response,
   ) {
     const result = await this.loginUseCase.execute(loginDto);
     
+    // Set HttpOnly refresh token cookie
+    response.cookie('refresh_token', result.refresh_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days matching JWT expiration
+    });
+
+    return result;
+  }
+
+  @Post('employee-login')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: process.env.NODE_ENV === 'production' ? 20 : 1000, ttl: 60000 } })
+  @ApiOperation({ summary: 'Employee login with Company TaxID (RIF), username and password' })
+  async employeeLogin(
+    @Body() employeeLoginDto: EmployeeLoginDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.employeeLoginUseCase.execute(employeeLoginDto);
+
     // Set HttpOnly refresh token cookie
     response.cookie('refresh_token', result.refresh_token, {
       httpOnly: true,

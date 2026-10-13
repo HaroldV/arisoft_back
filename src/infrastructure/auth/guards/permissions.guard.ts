@@ -2,6 +2,7 @@ import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY, ANY_PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 import { UserRole } from '../../../domain/entities/user.entity';
+import { BACKEND_SYSTEM_CONSTANTS } from '../../../domain/constants/domain.constants';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -25,7 +26,7 @@ export class PermissionsGuard implements CanActivate {
     const { user } = context.switchToHttp().getRequest();
     
     if (!user) {
-      throw new ForbiddenException('No user session found');
+      throw new ForbiddenException(BACKEND_SYSTEM_CONSTANTS.MESSAGES.NO_SESSION_FOUND);
     }
 
     // Owner and Super Admin roles have absolute permissions, skip validation
@@ -34,7 +35,7 @@ export class PermissionsGuard implements CanActivate {
     }
 
     if (!user.permissions || !Array.isArray(user.permissions)) {
-      throw new ForbiddenException('No granular permissions found in session');
+      throw new ForbiddenException(BACKEND_SYSTEM_CONSTANTS.MESSAGES.FORBIDDEN_RESOURCE);
     }
 
     if (requiredPermissions && requiredPermissions.length > 0) {
@@ -42,7 +43,9 @@ export class PermissionsGuard implements CanActivate {
         user.permissions.includes(perm)
       );
       if (!hasAccess) {
-        throw new ForbiddenException(`Insufficient permissions. Required: ${requiredPermissions.join(', ')}`);
+        throw new ForbiddenException(
+          BACKEND_SYSTEM_CONSTANTS.MESSAGES.INSUFFICIENT_PERMISSIONS(requiredPermissions.join(', ')),
+        );
       }
     }
 
@@ -51,7 +54,9 @@ export class PermissionsGuard implements CanActivate {
         user.permissions.includes(perm)
       );
       if (!hasAnyAccess) {
-        throw new ForbiddenException(`Insufficient permissions. Required one of: ${anyPermissions.join(', ')}`);
+        throw new ForbiddenException(
+          BACKEND_SYSTEM_CONSTANTS.MESSAGES.INSUFFICIENT_PERMISSIONS_ANY(anyPermissions.join(', ')),
+        );
       }
     }
 

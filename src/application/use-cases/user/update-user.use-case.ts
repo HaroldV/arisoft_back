@@ -1,4 +1,4 @@
-import { Injectable, Inject, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Inject, ForbiddenException, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { IUserRepository } from '../../../domain/repositories/user.repository.interface';
 import { TenantRepository } from '../../../infrastructure/persistence/typeorm/repositories/tenant.repository';
 import { AuthService } from '../auth/auth.service';
@@ -176,13 +176,27 @@ export class UpdateUserUseCase {
 
     // 7. Update target fields
     if (dto.full_name !== undefined) targetUser.full_name = dto.full_name;
-    if (dto.email !== undefined) targetUser.email = dto.email.toLowerCase().trim();
+    if (dto.username !== undefined) {
+      const cleanUsername = dto.username.toLowerCase().trim();
+      const existing = await this.userRepository.findByUsernameAndTenant(cleanUsername, targetUser.tenant_id);
+      if (existing && existing.id !== targetUser.id) {
+        throw new ConflictException(`El nombre de usuario "${cleanUsername}" ya está en uso en esta empresa`);
+      }
+      targetUser.username = cleanUsername;
+    }
+    if (dto.email !== undefined) targetUser.email = dto.email ? dto.email.toLowerCase().trim() : undefined;
     if (dto.role !== undefined) targetUser.role = dto.role;
     if (dto.role_id !== undefined) targetUser.role_id = dto.role_id || null;
     if (dto.branch_id !== undefined) targetUser.branch_id = dto.branch_id || null;
     if (dto.allowed_modules !== undefined) targetUser.allowed_modules = dto.allowed_modules;
     if (dto.allowed_permissions !== undefined) targetUser.allowed_permissions = dto.allowed_permissions;
-    if (dto.is_active !== undefined) targetUser.is_active = dto.is_active;
+    if (dto.is_active !== undefined) {
+      targetUser.is_active = dto.is_active;
+      // Desbloqueo por parte del Owner / Manager al reactivar la cuenta
+      if (dto.is_active === true) {
+        targetUser.failed_login_attempts = 0;
+      }
+    }
 
     if (dto.password !== undefined) {
       targetUser.password_hash = await this.authService.hashPassword(dto.password);
