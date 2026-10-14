@@ -21,6 +21,7 @@ import { ApproveShiftUseCase } from './application/use-cases/pos/approve-shift.u
 import { EmitSalesNoteUseCase } from './application/use-cases/pos/emit-sales-note.use-case';
 import { RegisterPurchaseNoteUseCase } from './application/use-cases/inventory/register-purchase-note.use-case';
 import { LoginUseCase } from './application/use-cases/auth/login.use-case';
+import { EmployeeLoginUseCase } from './application/use-cases/auth/employee-login.use-case';
 import { RegisterTenantUseCase } from './application/use-cases/tenant/register-tenant.use-case';
 import { ProductRepository } from './infrastructure/persistence/typeorm/repositories/product.repository';
 import { StockMoveRepository } from './infrastructure/persistence/typeorm/repositories/stock-move.repository';
@@ -95,6 +96,8 @@ import { Role } from './domain/entities/role.entity';
 import { RolesController } from './presentation/web/controllers/roles.controller';
 import { CreateRoleUseCase } from './application/use-cases/role/create-role.use-case';
 import { ListRolesUseCase } from './application/use-cases/role/list-roles.use-case';
+import { UpdateRoleUseCase } from './application/use-cases/role/update-role.use-case';
+import { DeleteRoleUseCase } from './application/use-cases/role/delete-role.use-case';
 import { RoleRepository } from './infrastructure/persistence/typeorm/repositories/role.repository';
 
 import { AccountReceivablePayable } from './domain/entities/account-receivable-payable.entity';
@@ -246,6 +249,7 @@ import { ALL_ENTITIES } from './domain/entities';
     EmitSalesNoteUseCase,
     RegisterPurchaseNoteUseCase,
     LoginUseCase,
+    EmployeeLoginUseCase,
     RegisterTenantUseCase,
     ForgotPasswordUseCase,
     ResetPasswordUseCase,
@@ -265,6 +269,8 @@ import { ALL_ENTITIES } from './domain/entities';
     ConvertCommercialDocumentUseCase,
     CreateRoleUseCase,
     ListRolesUseCase,
+    UpdateRoleUseCase,
+    DeleteRoleUseCase,
     CreateUserUseCase,
     ListUsersUseCase,
     UpdateUserUseCase,

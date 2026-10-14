@@ -12,6 +12,7 @@ import { TenantFiscalRangeRepository } from '../../../infrastructure/persistence
 import { CashShiftRepository } from '../../../infrastructure/persistence/typeorm/repositories/cash-shift.repository';
 import { FiscalDocType } from '../../../domain/entities/tenant-fiscal-range.entity';
 import { UserRole } from '../../../domain/entities/user.entity';
+import { BACKEND_SYSTEM_CONSTANTS } from '../../../domain/constants/domain.constants';
 import { CreateSaleDto } from './create-sale.dto';
 
 import { BankAccount } from '../../../domain/entities/bank-account.entity';
@@ -47,7 +48,7 @@ export class CreateSaleUseCase {
     // 1. Load tenant settings
     const tenant = await this.tenantRepo.findById(tenantId);
     if (!tenant) {
-      throw new NotFoundException(`Tenant with ID ${tenantId} not found`);
+      throw new NotFoundException(BACKEND_SYSTEM_CONSTANTS.MESSAGES.TENANT_NOT_FOUND);
     }
 
     const allowNegativeStock =
@@ -62,7 +63,7 @@ export class CreateSaleUseCase {
     if (products.length !== uniqueProductIds.length) {
       const foundIds = new Set(products.map(p => p.id));
       const missingIds = uniqueProductIds.filter(id => !foundIds.has(id));
-      throw new NotFoundException(`Products not found: ${missingIds.join(', ')}`);
+      throw new NotFoundException(BACKEND_SYSTEM_CONSTANTS.MESSAGES.PRODUCTS_NOT_FOUND(missingIds.join(', ')));
     }
 
     // Map products for easy access
@@ -83,8 +84,9 @@ export class CreateSaleUseCase {
       if (remanent < 0) {
         if (!allowNegativeStock) {
           const prod = productMap.get(item.productId);
+          const productName = prod?.name || item.productId;
           throw new BadRequestException(
-            `Insufficient stock for product ${prod?.name || item.productId}. Available: ${currentStock}, requested: ${item.quantity}`,
+            BACKEND_SYSTEM_CONSTANTS.MESSAGES.INSUFFICIENT_STOCK(productName, currentStock, item.quantity),
           );
         }
         requiresJustification = true;

@@ -52,9 +52,11 @@ export class RegisterTenantUseCase {
       const passwordHash = await this.authService.hashPassword(dto.password);
 
       // 4. Persist Owner User (AC: #1)
+      const ownerUsername = email.split('@')[0];
       const user = new User({
         tenant_id: savedTenant.id,
         full_name: dto.ownerName,
+        username: ownerUsername,
         email,
         password_hash: passwordHash,
         role: UserRole.OWNER,

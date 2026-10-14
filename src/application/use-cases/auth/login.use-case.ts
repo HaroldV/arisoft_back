@@ -81,7 +81,7 @@ export class LoginUseCase {
     }
 
     const defaultOwnerPermissions = [
-      'pos:create', 'sales:invoicing', 'sales:quotations', 'sales:orders', 'sales:deliveries', 'clients:manage', 'pos:shifts',
+      'pos:create', 'pos:discount', 'pos:refund', 'sales:invoicing', 'sales:quotations', 'sales:orders', 'sales:deliveries', 'clients:manage', 'pos:shifts',
       'purchases:orders', 'purchases:receptions', 'purchases:new', 'purchases:invoices', 'providers:manage',
       'inventory:create', 'inventory:stock', 'inventory:bulk_prices', 'inventory:valuation', 'inventory:warehouse', 'inventory:categories', 'inventory:moves',
       'banks:accounts', 'accounts:receivables', 'accounts:payables', 'accounts:history',

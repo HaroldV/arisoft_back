@@ -14,6 +14,15 @@ export class UpdateUserDto {
   full_name?: string;
 
   @ApiProperty({
+    description: 'Nombre de usuario dentro de la empresa',
+    example: 'carlos123',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  username?: string;
+
+  @ApiProperty({
     description: 'Correo electrónico único de inicio de sesión',
     example: 'carlos@ari.com',
     required: false,

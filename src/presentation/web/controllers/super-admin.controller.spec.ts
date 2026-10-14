@@ -9,6 +9,7 @@ import { SaasPlanManagementUseCase } from '../../../application/use-cases/admin/
 import { ApproveSubscriptionPaymentUseCase } from '../../../application/use-cases/admin/approve-subscription-payment.use-case';
 
 import { ExchangeRateHistoryRepository } from '../../../infrastructure/persistence/typeorm/repositories/exchange-rate-history.repository';
+import { BACKEND_SYSTEM_CONSTANTS } from '../../../domain/constants/domain.constants';
 
 describe('SuperAdminController - SaaS Plans CRUD (Unit & Integration Tests)', () => {
   let controller: SuperAdminController;
@@ -243,7 +244,7 @@ describe('SuperAdminController - SaaS Plans CRUD (Unit & Integration Tests)', ()
         reset_password: true
       });
 
-      expect(result.message).toBe('Tenant subscription updated successfully');
+      expect(result.message).toBe(BACKEND_SYSTEM_CONSTANTS.MESSAGES.TENANT_UPDATED);
       expect(result.defaultPassword).toBe('ArivPassword123!');
       expect(mockAuthService.hashPassword).toHaveBeenCalledWith('ArivPassword123!');
       expect(mockUserRepo.save).toHaveBeenCalledWith(
@@ -331,7 +332,7 @@ describe('SuperAdminController - SaaS Plans CRUD (Unit & Integration Tests)', ()
 
       const result = await controller.updateTenant(validUuid, fullEditPayload);
 
-      expect(result.message).toBe('Tenant subscription updated successfully');
+      expect(result.message).toBe(BACKEND_SYSTEM_CONSTANTS.MESSAGES.TENANT_UPDATED);
       expect(mockTenantRepo.save).toHaveBeenCalledTimes(1);
       expect(mockUserRepo.save).toHaveBeenCalledTimes(1);
 
@@ -426,7 +427,7 @@ describe('SuperAdminController - SaaS Plans CRUD (Unit & Integration Tests)', ()
 
       const res = await controller.updateTenant(tenantId, editOwnerPayload);
 
-      expect(res.message).toBe('Tenant subscription updated successfully');
+      expect(res.message).toBe(BACKEND_SYSTEM_CONSTANTS.MESSAGES.TENANT_UPDATED);
       expect(mockAuthService.hashPassword).toHaveBeenCalledWith('NuevaClave2026!');
 
       // Verificar que el Tenant actualizó settings del owner

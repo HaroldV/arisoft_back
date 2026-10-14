@@ -113,6 +113,8 @@ export const PLAN_DEFAULT_PERMISSIONS: Record<SaasPlanEnum, string[]> = {
   [SaasPlanEnum.EMPRENDEDOR]: [
     // 1. Módulo Ventas (POS)
     'pos:create',
+    'pos:discount',
+    'pos:refund',
     'sales:invoicing',
     'clients:manage',
     // 2. Módulo Compras (INVENTORY_PURCHASES)
@@ -138,6 +140,8 @@ export const PLAN_DEFAULT_PERMISSIONS: Record<SaasPlanEnum, string[]> = {
   ],
   [SaasPlanEnum.COMERCIAL_PRO]: [
     'pos:create',
+    'pos:discount',
+    'pos:refund',
     'sales:invoicing',
     'sales:quotations',
     'sales:orders',
@@ -172,6 +176,8 @@ export const PLAN_DEFAULT_PERMISSIONS: Record<SaasPlanEnum, string[]> = {
   ],
   [SaasPlanEnum.CORPORATIVO]: [
     'pos:create',
+    'pos:discount',
+    'pos:refund',
     'sales:invoicing',
     'sales:quotations',
     'sales:orders',
@@ -227,11 +233,40 @@ export const BACKEND_SYSTEM_CONSTANTS = {
     SETTINGS: 5.00,
   },
   MESSAGES: {
-    TENANT_CREATED: 'Tenant and Owner user created successfully',
-    TENANT_UPDATED: 'Tenant subscription updated successfully',
+    TENANT_CREATED: 'Empresa y usuario Propietario creados exitosamente',
+    TENANT_UPDATED: 'Suscripción de la empresa actualizada exitosamente',
     OWNER_REACTIVATED: (email: string) => `Usuario propietario ${email} reactivado con éxito.`,
-    INVALID_UUID: 'Invalid tenant ID format',
-    TENANT_NOT_FOUND: 'Tenant not found',
-    OWNER_NOT_FOUND: 'Owner user not found for this tenant',
+    INVALID_UUID: 'El identificador proporcionado debe ser un UUID válido.',
+    TENANT_NOT_FOUND: 'Empresa no encontrada.',
+    OWNER_NOT_FOUND: 'Usuario propietario no encontrado para esta empresa.',
+    USER_NOT_FOUND: 'Usuario no encontrado.',
+    INSUFFICIENT_STOCK: (productName: string, available: number, requested: number) =>
+      `Stock insuficiente para el producto ${productName}. Disponible: ${available}, solicitado: ${requested}.`,
+    INSUFFICIENT_PERMISSIONS: (required: string) =>
+      `Permisos insuficientes. Se requiere: ${required}.`,
+    INSUFFICIENT_PERMISSIONS_ANY: (required: string) =>
+      `Permisos insuficientes. Se requiere al menos uno de: ${required}.`,
+    FORBIDDEN_RESOURCE: 'No tienes los permisos necesarios para acceder a este recurso.',
+    FORBIDDEN_MODULE: (modules: string) =>
+      `Tu perfil de usuario no cuenta con acceso al módulo: ${modules}.`,
+    FORBIDDEN_MODULE_ANY: (modules: string) =>
+      `Tu perfil de usuario no cuenta con acceso a ninguno de los siguientes módulos: ${modules}.`,
+    NO_SESSION_FOUND: 'No se encontró una sesión activa de usuario.',
+    TENANT_MISMATCH: 'El identificador de la empresa no coincide con la sesión autenticada.',
+    INVALID_CREDENTIALS: 'Credenciales inválidas.',
+    REFRESH_TOKEN_REQUIRED: 'El token de actualización es requerido.',
+    INVALID_REFRESH_TOKEN: 'Token de actualización inválido o expirado.',
+    RESET_TOKEN_INVALID: 'El token de restablecimiento es inválido o ha expirado.',
+    PRODUCT_NOT_FOUND: (id: string) => `Producto con ID ${id} no encontrado.`,
+    PRODUCTS_NOT_FOUND: (ids: string) => `Productos no encontrados: ${ids}.`,
+    PRODUCT_SKU_EXISTS: (sku: string) => `Ya existe un producto con el SKU ${sku}.`,
+    COMPANY_RIF_EXISTS: (rif: string) => `Ya existe una empresa registrada con el RIF ${rif}.`,
+    USER_EMAIL_EXISTS: (email: string) => `Ya existe un usuario registrado con el correo ${email}.`,
+    ONLY_OWNERS_MANAGERS: 'Solo propietarios y gerentes tienen autorización para realizar esta acción.',
+    MANAGERS_CANNOT_MANAGE_OWNERS: 'Los gerentes no pueden crear ni modificar usuarios con rol Propietario.',
+    ROLE_NOT_FOUND: 'Rol no encontrado.',
+    ROLE_IS_SYSTEM: 'No se pueden modificar ni eliminar los roles predeterminados del sistema.',
+    ROLE_IN_USE: (count: number) =>
+      `No se puede eliminar este rol porque actualmente está asignado a ${count} usuario(s). Reasigna a los usuarios antes de eliminarlo.`,
   },
 };

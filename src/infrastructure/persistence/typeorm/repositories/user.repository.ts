@@ -16,11 +16,23 @@ export class UserRepository implements IUserRepository {
     return this.userRepository.findOne({
       where: { email: cleanEmail },
       select: [
-        'id', 'tenant_id', 'full_name', 'email', 'password_hash', 
+        'id', 'tenant_id', 'full_name', 'username', 'email', 'password_hash', 
         'role', 'role_id', 'branch_id', 'is_active', 'created_at', 'updated_at', 'creator_id', 'allowed_modules', 'allowed_permissions', 'failed_login_attempts', 'is_temporary_password'
       ],
       relations: ['branch', 'branch.default_warehouse'],
     });
+  }
+
+  async findByUsernameAndTenant(username: string, tenantId: string): Promise<User | null> {
+    const cleanUsername = username ? username.toLowerCase().trim() : '';
+    return this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password_hash')
+      .leftJoinAndSelect('user.branch', 'branch')
+      .leftJoinAndSelect('branch.default_warehouse', 'default_warehouse')
+      .where('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('LOWER(TRIM(user.username)) = :username', { username: cleanUsername })
+      .getOne();
   }
 
   async findById(id: string): Promise<User | null> {

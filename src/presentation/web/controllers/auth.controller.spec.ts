@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { LoginUseCase } from '../../../application/use-cases/auth/login.use-case';
+import { EmployeeLoginUseCase } from '../../../application/use-cases/auth/employee-login.use-case';
 import { RegisterTenantUseCase } from '../../../application/use-cases/tenant/register-tenant.use-case';
 import { ForgotPasswordUseCase } from '../../../application/use-cases/auth/forgot-password.use-case';
 import { ResetPasswordUseCase } from '../../../application/use-cases/auth/reset-password.use-case';
@@ -13,6 +14,7 @@ import { Request, Response } from 'express';
 describe('AuthController (Unit & Integration Tests)', () => {
   let controller: AuthController;
   let mockLoginUseCase: any;
+  let mockEmployeeLoginUseCase: any;
   let mockRegisterTenantUseCase: any;
   let mockForgotPasswordUseCase: any;
   let mockResetPasswordUseCase: any;
@@ -22,6 +24,7 @@ describe('AuthController (Unit & Integration Tests)', () => {
 
   beforeEach(async () => {
     mockLoginUseCase = { execute: jest.fn() };
+    mockEmployeeLoginUseCase = { execute: jest.fn() };
     mockRegisterTenantUseCase = { execute: jest.fn() };
     mockForgotPasswordUseCase = { execute: jest.fn() };
     mockResetPasswordUseCase = { execute: jest.fn() };
@@ -37,6 +40,7 @@ describe('AuthController (Unit & Integration Tests)', () => {
       controllers: [AuthController],
       providers: [
         { provide: LoginUseCase, useValue: mockLoginUseCase },
+        { provide: EmployeeLoginUseCase, useValue: mockEmployeeLoginUseCase },
         { provide: RegisterTenantUseCase, useValue: mockRegisterTenantUseCase },
         { provide: ForgotPasswordUseCase, useValue: mockForgotPasswordUseCase },
         { provide: ResetPasswordUseCase, useValue: mockResetPasswordUseCase },
@@ -70,6 +74,28 @@ describe('AuthController (Unit & Integration Tests)', () => {
       expect(mockResponse.cookie).toHaveBeenCalledWith(
         'refresh_token',
         'mock-refresh-token',
+        expect.objectContaining({ httpOnly: true })
+      );
+      expect(res).toEqual(expectedResult);
+    });
+  });
+
+  describe('POST /auth/employee-login', () => {
+    it('should authenticate employee and set httpOnly cookie', async () => {
+      const employeeDto = { taxId: 'J-12345678-0', username: 'cajero1', password: 'Password123!' };
+      const expectedResult = {
+        user: { id: 'u-2', username: 'cajero1' },
+        access_token: 'mock-access-token-emp',
+        refresh_token: 'mock-refresh-token-emp',
+      };
+      mockEmployeeLoginUseCase.execute.mockResolvedValue(expectedResult);
+
+      const res = await controller.employeeLogin(employeeDto, mockResponse as Response);
+
+      expect(mockEmployeeLoginUseCase.execute).toHaveBeenCalledWith(employeeDto);
+      expect(mockResponse.cookie).toHaveBeenCalledWith(
+        'refresh_token',
+        'mock-refresh-token-emp',
         expect.objectContaining({ httpOnly: true })
       );
       expect(res).toEqual(expectedResult);

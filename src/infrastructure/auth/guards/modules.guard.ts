@@ -2,6 +2,7 @@ import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@
 import { Reflector } from '@nestjs/core';
 import { MODULES_KEY, ANY_MODULES_KEY, AppModule } from '../decorators/modules.decorator';
 import { UserRole } from '../../../domain/entities/user.entity';
+import { BACKEND_SYSTEM_CONSTANTS } from '../../../domain/constants/domain.constants';
 
 @Injectable()
 export class ModulesGuard implements CanActivate {
@@ -25,7 +26,7 @@ export class ModulesGuard implements CanActivate {
     const { user } = context.switchToHttp().getRequest();
     
     if (!user) {
-      throw new ForbiddenException('No user session found');
+      throw new ForbiddenException(BACKEND_SYSTEM_CONSTANTS.MESSAGES.NO_SESSION_FOUND);
     }
 
     // Owner and SuperAdmin have absolute module access
@@ -34,7 +35,7 @@ export class ModulesGuard implements CanActivate {
     }
 
     if (!user.enabled_modules || !Array.isArray(user.enabled_modules)) {
-      throw new ForbiddenException('No module access information found in session');
+      throw new ForbiddenException(BACKEND_SYSTEM_CONSTANTS.MESSAGES.FORBIDDEN_RESOURCE);
     }
 
     if (requiredModules && requiredModules.length > 0) {
@@ -42,7 +43,9 @@ export class ModulesGuard implements CanActivate {
         user.enabled_modules.includes(module)
       );
       if (!hasAccess) {
-        throw new ForbiddenException(`Your user permissions do not include access to: ${requiredModules.join(', ')}`);
+        throw new ForbiddenException(
+          BACKEND_SYSTEM_CONSTANTS.MESSAGES.FORBIDDEN_MODULE(requiredModules.join(', ')),
+        );
       }
     }
 
@@ -51,7 +54,9 @@ export class ModulesGuard implements CanActivate {
         user.enabled_modules.includes(module)
       );
       if (!hasAnyAccess) {
-        throw new ForbiddenException(`Your user permissions do not include access to any of: ${anyModules.join(', ')}`);
+        throw new ForbiddenException(
+          BACKEND_SYSTEM_CONSTANTS.MESSAGES.FORBIDDEN_MODULE_ANY(anyModules.join(', ')),
+        );
       }
     }
 

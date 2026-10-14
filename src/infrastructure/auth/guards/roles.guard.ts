@@ -2,6 +2,7 @@ import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@
 import { Reflector } from '@nestjs/core';
 import { UserRole } from '../../../domain/entities/user.entity';
 import { ROLES_KEY } from '../decorators/roles.decorator';
+import { BACKEND_SYSTEM_CONSTANTS } from '../../../domain/constants/domain.constants';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -20,7 +21,7 @@ export class RolesGuard implements CanActivate {
     const { user } = context.switchToHttp().getRequest();
     
     if (!user || !requiredRoles.includes(user.role)) {
-      throw new ForbiddenException('Insufficient permissions to access this resource');
+      throw new ForbiddenException(BACKEND_SYSTEM_CONSTANTS.MESSAGES.FORBIDDEN_RESOURCE);
     }
 
     return true;

@@ -21,8 +21,11 @@ export class User {
   @Column()
   full_name: string;
 
-  @Column()
-  email: string;
+  @Column({ type: 'varchar', length: 50 })
+  username: string;
+
+  @Column({ nullable: true })
+  email?: string;
 
   @Column({ select: false }) // Hide password by default for security
   password_hash: string;
