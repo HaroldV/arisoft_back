@@ -10,6 +10,7 @@ import { ApproveSubscriptionPaymentUseCase } from '../../../application/use-case
 
 import { ExchangeRateHistoryRepository } from '../../../infrastructure/persistence/typeorm/repositories/exchange-rate-history.repository';
 import { BACKEND_SYSTEM_CONSTANTS } from '../../../domain/constants/domain.constants';
+import { EmailValidator } from '../../../domain/utils/email-validator.util';
 
 describe('SuperAdminController - SaaS Plans CRUD (Unit & Integration Tests)', () => {
   let controller: SuperAdminController;
@@ -441,4 +442,59 @@ describe('SuperAdminController - SaaS Plans CRUD (Unit & Integration Tests)', ()
       expect(userSaved.is_temporary_password).toBe(true);
     });
   });
+
+  describe('POST /admin/tenants (createTenant)', () => {
+    it('Debe crear el Tenant y el User asignando el username derivado del email', async () => {
+      const mockCreatedTenant = {
+        id: 'new-tenant-uuid-123',
+        company_name: 'Empresa Test C.A.',
+        tax_id: 'J-12345678-9',
+        settings: {
+          enabled_permissions: ['pos:read', 'pos:create'],
+        },
+      };
+
+      let savedUser: any = null;
+
+      mockDataSource.transaction = jest.fn().mockImplementation(async (cb: any) => {
+        const managerMock = {
+          findOne: jest.fn().mockResolvedValue(null),
+          save: jest.fn().mockImplementation(async (entityClass: any, entityInstance: any) => {
+            if (entityClass.name === 'Tenant') {
+              return { ...entityInstance, id: 'new-tenant-uuid-123' };
+            }
+            if (entityClass.name === 'User') {
+              savedUser = entityInstance;
+              return entityInstance;
+            }
+            return entityInstance;
+          }),
+        };
+        return cb(managerMock);
+      });
+
+      mockAuthService.hashPassword = jest.fn().mockResolvedValue('hashed_ArivPassword123!');
+
+      jest.spyOn(EmailValidator, 'validate').mockResolvedValueOnce({
+        isValidSyntax: true,
+        hasValidMx: true,
+      });
+
+      const result = await controller.createTenant({
+        name: 'Empresa Test C.A.',
+        tax_id: 'J-31456982-1',
+        owner_email: 'gerencia@testempresa.com',
+        owner_name: 'Gerente General',
+        status: 'ACTIVE',
+      });
+
+      expect(result.tenantId).toBe('new-tenant-uuid-123');
+      expect(result.defaultPassword).toBe(BACKEND_SYSTEM_CONSTANTS.DEFAULT_PASSWORD_ONBOARDING);
+      expect(savedUser).toBeDefined();
+      expect(savedUser.username).toBe('gerencia');
+      expect(savedUser.email).toBe('gerencia@testempresa.com');
+      expect(savedUser.full_name).toBe('Gerente General');
+    });
+  });
 });
+
