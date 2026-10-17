@@ -226,10 +226,12 @@ export class SuperAdminController {
       // Create User Owner with default password from constant
       const defaultPassword = BACKEND_SYSTEM_CONSTANTS.DEFAULT_PASSWORD_ONBOARDING;
       const passwordHash = await this.authService.hashPassword(defaultPassword);
+      const ownerUsername = cleanEmail.split('@')[0];
 
       const user = new User({
         tenant_id: savedTenant.id,
         full_name: owner_name || BACKEND_SYSTEM_CONSTANTS.DEFAULT_OWNER_NAME,
+        username: ownerUsername,
         email: cleanEmail,
         password_hash: passwordHash,
         role: UserRole.OWNER,
@@ -415,6 +417,7 @@ export class SuperAdminController {
       const newOwner = new User({
         tenant_id: tenant.id,
         full_name: cleanOwnerName || BACKEND_SYSTEM_CONSTANTS.DEFAULT_OWNER_NAME,
+        username: cleanOwnerEmail.split('@')[0],
         email: cleanOwnerEmail,
         password_hash: passwordHash,
         role: UserRole.OWNER,
