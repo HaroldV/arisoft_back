@@ -454,6 +454,7 @@ describe('SuperAdminController - SaaS Plans CRUD (Unit & Integration Tests)', ()
         },
       };
 
+      let savedTenant: any = null;
       let savedUser: any = null;
 
       mockDataSource.transaction = jest.fn().mockImplementation(async (cb: any) => {
@@ -461,6 +462,7 @@ describe('SuperAdminController - SaaS Plans CRUD (Unit & Integration Tests)', ()
           findOne: jest.fn().mockResolvedValue(null),
           save: jest.fn().mockImplementation(async (entityClass: any, entityInstance: any) => {
             if (entityClass.name === 'Tenant') {
+              savedTenant = entityInstance;
               return { ...entityInstance, id: 'new-tenant-uuid-123' };
             }
             if (entityClass.name === 'User') {
@@ -486,14 +488,57 @@ describe('SuperAdminController - SaaS Plans CRUD (Unit & Integration Tests)', ()
         owner_email: 'gerencia@testempresa.com',
         owner_name: 'Gerente General',
         status: 'ACTIVE',
+        plan_is_active: true,
+        subscription_expires_at: '2026-12-31',
       });
 
       expect(result.tenantId).toBe('new-tenant-uuid-123');
       expect(result.defaultPassword).toBe(BACKEND_SYSTEM_CONSTANTS.DEFAULT_PASSWORD_ONBOARDING);
+      expect(savedTenant).toBeDefined();
+      expect(savedTenant.plan_is_active).toBe(true);
+      expect(new Date(savedTenant.trial_expires_at).toISOString().split('T')[0]).toBe('2026-12-31');
       expect(savedUser).toBeDefined();
       expect(savedUser.username).toBe('gerencia');
       expect(savedUser.email).toBe('gerencia@testempresa.com');
       expect(savedUser.full_name).toBe('Gerente General');
+    });
+
+    it('Debe permitir activar plan_is_active al actualizar un tenant existente', async () => {
+      const validUuid = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+      const mockTenant = {
+        id: validUuid,
+        company_name: 'Demo Company',
+        tax_id: 'J-31456982-1',
+        plan_type: 'EMPRENDEDOR',
+        is_active: true,
+        plan_is_active: false,
+        trial_expires_at: new Date('2026-05-01'),
+        settings: {},
+      };
+
+      let updatedTenant: any = null;
+      const mockTenantRepo = {
+        findOne: jest.fn().mockResolvedValue(mockTenant),
+        save: jest.fn().mockImplementation(async (t) => {
+          updatedTenant = t;
+          return t;
+        }),
+      };
+
+      mockDataSource.getRepository = jest.fn().mockImplementation((entity) => {
+        if (entity.name === 'Tenant') return mockTenantRepo;
+        if (entity.name === 'User') return { findOne: jest.fn().mockResolvedValue(null), save: jest.fn() };
+        return mockPlanRepository;
+      });
+
+      const res = await controller.updateTenant(validUuid, {
+        plan_is_active: true,
+        subscription_expires_at: '2026-11-30',
+      });
+
+      expect(res.message).toBe(BACKEND_SYSTEM_CONSTANTS.MESSAGES.TENANT_UPDATED);
+      expect(updatedTenant.plan_is_active).toBe(true);
+      expect(new Date(updatedTenant.trial_expires_at).toISOString().split('T')[0]).toBe('2026-11-30');
     });
   });
 });

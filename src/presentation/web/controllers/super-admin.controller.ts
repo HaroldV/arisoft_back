@@ -115,6 +115,7 @@ export class SuperAdminController {
         subdomain: tenant.settings?.subdomain || tenant.company_name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
         plan_name: tenant.plan_type || SaasPlanEnum.COMERCIAL_PRO,
         status: tenant.is_active ? 'ACTIVE' : 'SUSPENDED',
+        plan_is_active: Boolean(tenant.plan_is_active),
         user_count: userCount,
         inactive_user_count: inactiveUserCount,
         max_users: tenant.settings?.max_users || planLimits.USERS,
@@ -195,10 +196,15 @@ export class SuperAdminController {
       tenant.plan_type = plan_name || SaasPlanEnum.COMERCIAL_PRO;
       
       const trialDays = status === TenantStatusEnum.TRIAL ? BACKEND_SYSTEM_CONSTANTS.TRIAL_DAYS_STANDARD : BACKEND_SYSTEM_CONSTANTS.ANNUAL_DAYS_STANDARD;
-      const trialExpiresAt = new Date();
-      trialExpiresAt.setDate(trialExpiresAt.getDate() + trialDays);
+      let trialExpiresAt = new Date();
+      if (body.subscription_expires_at) {
+        trialExpiresAt = new Date(body.subscription_expires_at);
+      } else {
+        trialExpiresAt.setDate(trialExpiresAt.getDate() + trialDays);
+      }
       tenant.trial_expires_at = trialExpiresAt;
       tenant.is_active = status !== TenantStatusEnum.SUSPENDED;
+      tenant.plan_is_active = body.plan_is_active !== undefined ? Boolean(body.plan_is_active) : (status !== TenantStatusEnum.SUSPENDED);
       
       const selectedPlan = (plan_name as SaasPlanEnum) || SaasPlanEnum.COMERCIAL_PRO;
       const defaultPlanModules = PLAN_DEFAULT_MODULES[selectedPlan] || PLAN_DEFAULT_MODULES[SaasPlanEnum.COMERCIAL_PRO];
@@ -326,7 +332,15 @@ export class SuperAdminController {
     tenant.plan_type = plan_name || tenant.plan_type;
     tenant.is_active = status !== TenantStatusEnum.SUSPENDED;
 
-    if (status === TenantStatusEnum.ACTIVE && new Date() >= new Date(tenant.trial_expires_at)) {
+    if (body.plan_is_active !== undefined) {
+      tenant.plan_is_active = Boolean(body.plan_is_active);
+    } else if (status === TenantStatusEnum.SUSPENDED) {
+      tenant.plan_is_active = false;
+    }
+
+    if (body.subscription_expires_at) {
+      tenant.trial_expires_at = new Date(body.subscription_expires_at);
+    } else if (status === TenantStatusEnum.ACTIVE && new Date() >= new Date(tenant.trial_expires_at)) {
       const newExpiry = new Date();
       newExpiry.setDate(newExpiry.getDate() + BACKEND_SYSTEM_CONSTANTS.SUBSCRIPTION_RENEWAL_DAYS);
       tenant.trial_expires_at = newExpiry;

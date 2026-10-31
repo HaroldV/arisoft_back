@@ -192,6 +192,75 @@ export class ClientsController {
     return { message: 'Client successfully deactivated' };
   }
 
+  @Post('bulk')
+  @RequiredModules(AppModule.POS)
+  @RequiredPermissions('clients:manage')
+  @ApiOperation({ summary: 'Bulk create clients' })
+  @ApiHeader({ name: 'x-tenant-id', required: true })
+  async bulkCreate(
+    @Headers('x-tenant-id') tenantId: string,
+    @Body() clientsPayload: CreateClientDto[],
+    @Req() req: any,
+  ) {
+    this.validateTenant(tenantId, req);
+
+    if (!Array.isArray(clientsPayload) || clientsPayload.length === 0) {
+      throw new BadRequestException('El cuerpo de la solicitud debe ser una lista no vacía de clientes.');
+    }
+
+    const created: Client[] = [];
+    const errors: { line: number; name?: string; tax_id?: string; reason: string }[] = [];
+
+    for (let i = 0; i < clientsPayload.length; i++) {
+      const item = clientsPayload[i];
+      const line = i + 1;
+
+      if (!item.name || !item.name.trim()) {
+        errors.push({ line, tax_id: item.tax_id, reason: 'El nombre o razón social es obligatorio.' });
+        continue;
+      }
+
+      if (!item.tax_id || !item.tax_id.trim()) {
+        errors.push({ line, name: item.name, reason: 'El R.I.F. o cédula es obligatorio.' });
+        continue;
+      }
+
+      const formattedTaxId = item.tax_id.trim().toUpperCase();
+
+      const existing = await this.clientRepo.findByTaxId(formattedTaxId);
+      if (existing) {
+        errors.push({ line, name: item.name, tax_id: formattedTaxId, reason: `El R.I.F. '${formattedTaxId}' ya está registrado.` });
+        continue;
+      }
+
+      const client = new Client();
+      client.tenant_id = tenantId;
+      client.name = item.name.trim();
+      client.tax_id = formattedTaxId;
+      client.email = item.email ? item.email.trim().toLowerCase() : undefined;
+      client.phone = item.phone ? item.phone.trim() : undefined;
+      client.address = item.address ? item.address.trim() : undefined;
+      client.delivery_address = item.delivery_address ? item.delivery_address.trim() : undefined;
+      client.zone_code = item.zone_code || 'DC';
+      client.taxpayer_type = item.taxpayer_type || 'EXEMPT';
+
+      try {
+        const saved = await this.clientRepo.save(client);
+        created.push(saved);
+      } catch (err: any) {
+        errors.push({ line, name: item.name, tax_id: formattedTaxId, reason: err.message || 'Error al persistir cliente' });
+      }
+    }
+
+    return {
+      success: errors.length === 0,
+      totalProcessed: clientsPayload.length,
+      insertedCount: created.length,
+      created,
+      errors,
+    };
+  }
+
   private validateTenant(tenantId: string, req: any) {
     if (!tenantId || !isUUID(tenantId)) {
       throw new BadRequestException('x-tenant-id must be a valid UUID');

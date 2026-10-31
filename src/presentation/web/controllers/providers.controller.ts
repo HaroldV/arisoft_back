@@ -220,6 +220,78 @@ export class ProvidersController {
     return { message: 'Provider successfully deactivated' };
   }
 
+  @Post('bulk')
+  @RequiredModules(AppModule.INVENTORY)
+  @ApiOperation({ summary: 'Bulk create providers' })
+  @ApiHeader({ name: 'x-tenant-id', required: false })
+  async bulkCreate(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Body() providersPayload: CreateProviderDto[],
+    @Req() req: any,
+  ) {
+    const tenantId = this.validateTenant(headerTenantId, req);
+
+    if (!Array.isArray(providersPayload) || providersPayload.length === 0) {
+      throw new BadRequestException('El cuerpo de la solicitud debe ser una lista no vacía de proveedores.');
+    }
+
+    const created: Provider[] = [];
+    const errors: { line: number; name?: string; tax_id?: string; reason: string }[] = [];
+
+    for (let i = 0; i < providersPayload.length; i++) {
+      const item = providersPayload[i];
+      const line = i + 1;
+
+      if (!item.name || !item.name.trim()) {
+        errors.push({ line, tax_id: item.tax_id, reason: 'El nombre o razón social es obligatorio.' });
+        continue;
+      }
+
+      if (!item.tax_id || !item.tax_id.trim()) {
+        errors.push({ line, name: item.name, reason: 'El R.I.F. es obligatorio.' });
+        continue;
+      }
+
+      const formattedTaxId = item.tax_id.trim().toUpperCase();
+
+      const existing = await this.providerRepo.findByTaxId(formattedTaxId);
+      if (existing) {
+        errors.push({ line, name: item.name, tax_id: formattedTaxId, reason: `El R.I.F. '${formattedTaxId}' ya está registrado.` });
+        continue;
+      }
+
+      const provider = new Provider();
+      provider.tenant_id = tenantId;
+      provider.name = item.name.trim();
+      provider.tax_id = formattedTaxId;
+      provider.email = item.email ? item.email.trim().toLowerCase() : undefined;
+      provider.phone = item.phone ? item.phone.trim() : undefined;
+      provider.address = item.address ? item.address.trim() : undefined;
+      provider.delivery_address = item.delivery_address ? item.delivery_address.trim() : undefined;
+      provider.zone_code = item.zone_code || 'DC';
+      provider.taxpayer_type = item.taxpayer_type || 'ORDINARY';
+      provider.is_retention_agent = item.is_retention_agent !== undefined ? Boolean(item.is_retention_agent) : false;
+      provider.retention_percentage = item.retention_percentage !== undefined ? Number(item.retention_percentage) : 75.00;
+      provider.islr_percentage = item.islr_percentage !== undefined ? Number(item.islr_percentage) : 2.00;
+      provider.islr_concept_code = item.islr_concept_code || 'SERVICES';
+
+      try {
+        const saved = await this.providerRepo.save(provider);
+        created.push(saved);
+      } catch (err: any) {
+        errors.push({ line, name: item.name, tax_id: formattedTaxId, reason: err.message || 'Error al persistir proveedor' });
+      }
+    }
+
+    return {
+      success: errors.length === 0,
+      totalProcessed: providersPayload.length,
+      insertedCount: created.length,
+      created,
+      errors,
+    };
+  }
+
   private validateTenant(tenantId: string, req: any): string {
     const resolvedTenantId = tenantId || req.user?.tenant_id || req.headers?.['x-tenant-id'];
     if (!resolvedTenantId || !isUUID(resolvedTenantId)) {
