@@ -219,5 +219,56 @@ describe('CreateSaleUseCase', () => {
     expect(result.saleId).toBe('saved-sale-id');
     expect(mockManager.save).toHaveBeenCalled();
   });
+
+  it('should emit delivery note without consuming invoice fiscal range when documentType is DELIVERY_NOTE', async () => {
+    const dto = {
+      documentType: 'DELIVERY_NOTE' as const,
+      applyTax: false,
+      items: [{ productId: productId1, quantity: 1 }],
+    };
+
+    const tenant = Object.assign(new Tenant(), { id: tenantId, settings: { allow_negative_stock: false } });
+    tenantRepo.findById.mockResolvedValue(tenant);
+    productRepo.findByIds.mockResolvedValue([new Product({ id: productId1, price_usd: 15, cost_usd: 10 } as any)]);
+
+    const stockMap = new Map<string, number>();
+    stockMap.set(productId1, 5);
+    stockMoveRepo.getCurrentStocks.mockResolvedValue(stockMap);
+    mockManager.count = jest.fn().mockResolvedValue(3);
+
+    const result = await useCase.execute(tenantId, { id: userId, role: 'OWNER', permissions: [] }, dto);
+    expect(tenantFiscalRangeRepo.getNextRangeNumbers).not.toHaveBeenCalled();
+    expect(result.invoiceNumber).toMatch(/^NDE-\d{4}-000004$/);
+    expect(result.controlNumber).toBeNull();
+    expect(result.totalAmountUsd).toBe(15);
+
+    // Verify CommercialDocument was created for delivery note listing
+    const savedCalls = mockManager.save.mock.calls;
+    const commercialDocCall = savedCalls.find((call: any[]) => call[0]?.name === 'CommercialDocument' || call[1]?.document_type === 'DELIVERY_NOTE');
+    expect(commercialDocCall).toBeDefined();
+    expect(commercialDocCall[1].document_number).toMatch(/^NDE-\d{4}-000004$/);
+    expect(commercialDocCall[1].status).toBe('DELIVERED');
+  });
+
+  it('should calculate and include tax when applyTax is true', async () => {
+    const dto = {
+      documentType: 'INVOICE' as const,
+      applyTax: true,
+      items: [{ productId: productId1, quantity: 2 }],
+    };
+
+    const tenant = Object.assign(new Tenant(), { id: tenantId, settings: { allow_negative_stock: false } });
+    tenantRepo.findById.mockResolvedValue(tenant);
+    productRepo.findByIds.mockResolvedValue([new Product({ id: productId1, price_usd: 10, cost_usd: 8, tax_rate: 16 } as any)]);
+
+    const stockMap = new Map<string, number>();
+    stockMap.set(productId1, 5);
+    stockMoveRepo.getCurrentStocks.mockResolvedValue(stockMap);
+
+    const result = await useCase.execute(tenantId, { id: userId, role: 'OWNER', permissions: [] }, dto);
+    expect(tenantFiscalRangeRepo.getNextRangeNumbers).toHaveBeenCalled();
+    // Subtotal 20 + 16% (3.2) = 23.20
+    expect(result.totalAmountUsd).toBe(23.2);
+  });
 });
 

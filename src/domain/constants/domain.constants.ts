@@ -64,6 +64,23 @@ export enum PurchaseOrderStatusEnum {
   CANCELLED = 'CANCELLED',
 }
 
+export enum PosDocumentTypeEnum {
+  INVOICE = 'INVOICE',
+  DELIVERY_NOTE = 'DELIVERY_NOTE',
+}
+
+export enum DeliveryTypeEnum {
+  STORE_PICKUP = 'STORE_PICKUP',
+  STORE_DELIVERY = 'STORE_DELIVERY',
+  FREIGHT = 'FREIGHT',
+}
+
+export const DELIVERY_TYPE_LABELS: Record<DeliveryTypeEnum, string> = {
+  [DeliveryTypeEnum.STORE_PICKUP]: 'Retiro en Tienda',
+  [DeliveryTypeEnum.STORE_DELIVERY]: 'Envío por Tienda',
+  [DeliveryTypeEnum.FREIGHT]: 'Por Flete',
+};
+
 export const FINANCIAL_CONSTANTS = {
   MIN_BALANCE_THRESHOLD: 0.01,
   ZERO_STRING_FALLBACK: '0',

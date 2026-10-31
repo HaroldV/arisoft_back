@@ -12,11 +12,14 @@ import { TenantFiscalRangeRepository } from '../../../infrastructure/persistence
 import { CashShiftRepository } from '../../../infrastructure/persistence/typeorm/repositories/cash-shift.repository';
 import { FiscalDocType } from '../../../domain/entities/tenant-fiscal-range.entity';
 import { UserRole } from '../../../domain/entities/user.entity';
-import { BACKEND_SYSTEM_CONSTANTS } from '../../../domain/constants/domain.constants';
+import { BACKEND_SYSTEM_CONSTANTS, PosDocumentTypeEnum, DeliveryTypeEnum, DELIVERY_TYPE_LABELS } from '../../../domain/constants/domain.constants';
 import { CreateSaleDto } from './create-sale.dto';
 
 import { BankAccount } from '../../../domain/entities/bank-account.entity';
 import { BankMovement } from '../../../domain/entities/bank-movement.entity';
+import { CommercialDocument, CommercialDocumentType, DocumentStatus } from '../../../domain/entities/commercial-document.entity';
+import { CommercialDocumentItem } from '../../../domain/entities/commercial-document-item.entity';
+import { Client } from '../../../domain/entities/client.entity';
 
 @Injectable()
 export class CreateSaleUseCase {
@@ -126,20 +129,50 @@ export class CreateSaleUseCase {
     // 5. Run atomic transaction
     return this.dataSource.transaction(async (manager) => {
       // Calculate total amount
-      let totalAmountUsd = 0;
+      let subtotalUsd = 0;
+      let taxAmountUsd = 0;
+      const shouldApplyTax = dto.applyTax === true; // Only apply if explicitly requested in DTO
+      const isDeliveryNote = dto.documentType === PosDocumentTypeEnum.DELIVERY_NOTE;
+
       for (const item of dto.items) {
         const prod = productMap.get(item.productId)!;
-        totalAmountUsd += item.quantity * prod.price_usd;
+        const lineTotal = item.quantity * prod.price_usd;
+        subtotalUsd += lineTotal;
+
+        if (shouldApplyTax) {
+          const itemTaxRate = prod.tax_rate !== undefined ? Number(prod.tax_rate) : 16;
+          const discountMultiplier = dto.discountPercent && dto.discountPercent > 0 ? (1 - dto.discountPercent / 100) : 1;
+          taxAmountUsd += (lineTotal * discountMultiplier) * (itemTaxRate / 100);
+        }
       }
 
+      let discountedSubtotalUsd = subtotalUsd;
       if (dto.discountPercent && dto.discountPercent > 0) {
-        totalAmountUsd = totalAmountUsd * (1 - dto.discountPercent / 100);
+        discountedSubtotalUsd = subtotalUsd * (1 - dto.discountPercent / 100);
       }
 
+      const totalAmountUsd = Number((discountedSubtotalUsd + taxAmountUsd).toFixed(2));
       const exchangeRate = dto.exchangeRateApplied || 1.0;
 
-      // Resolve next fiscal and control numbers inside transaction block
-      const numbers = await this.tenantFiscalRangeRepo.getNextRangeNumbers(FiscalDocType.INVOICE, manager);
+      // Resolve document numbers:
+      // If DELIVERY_NOTE, generate internal note sequence without consuming fiscal range.
+      let invoiceNumber: string;
+      let controlNumber: string | null = null;
+
+      if (isDeliveryNote) {
+        const year = new Date().getFullYear();
+        // Count previous delivery notes for this tenant
+        const totalSales = await manager.count(Sale, {
+          where: { tenant_id: tenantId },
+        });
+        const seq = String(totalSales + 1).padStart(6, '0');
+        invoiceNumber = `NDE-${year}-${seq}`;
+      } else {
+        // Resolve next fiscal and control numbers inside transaction block
+        const numbers = await this.tenantFiscalRangeRepo.getNextRangeNumbers(FiscalDocType.INVOICE, manager);
+        invoiceNumber = numbers.documentNumber;
+        controlNumber = numbers.controlNumber;
+      }
 
       // Determine branch and warehouse from active shift or user
       const branchId = activeShift?.branch_id || undefined;
@@ -153,8 +186,8 @@ export class CreateSaleUseCase {
         exchange_rate_applied: exchangeRate,
         status: 'PAID',
         client_id: dto.clientId || null,
-        invoice_number: numbers.documentNumber,
-        control_number: numbers.controlNumber,
+        invoice_number: invoiceNumber,
+        control_number: controlNumber,
         payment_method: dto.paymentMethod || null,
         shift_id: activeShift?.id || null,
         branch_id: branchId || null,
@@ -270,6 +303,87 @@ export class CreateSaleUseCase {
           justification: justification || null,
           created_by_user_id: userId,
         }));
+      }
+
+      // If document type is DELIVERY_NOTE, record it in CommercialDocument so it reflects in Notas de Entrega
+      if (isDeliveryNote) {
+        let clientName = 'Cliente de Mostrador (POS)';
+        let clientTaxId: string | undefined = undefined;
+
+        if (dto.clientId) {
+          const client = await manager.findOne(Client, {
+            where: { id: dto.clientId, tenant_id: tenantId },
+          });
+          if (client) {
+            clientName = client.name;
+            clientTaxId = client.tax_id;
+          }
+        }
+
+        const deliveryType = dto.deliveryType || DeliveryTypeEnum.STORE_PICKUP;
+        const baseDeliveryLabel = DELIVERY_TYPE_LABELS[deliveryType] || DELIVERY_TYPE_LABELS[DeliveryTypeEnum.STORE_PICKUP];
+        const deliveryLabel = deliveryType === DeliveryTypeEnum.FREIGHT
+          ? `${baseDeliveryLabel}${dto.freightDestination ? ` (Destino: ${dto.freightDestination})` : ''}`
+          : baseDeliveryLabel;
+
+        const carrierName = deliveryType === DeliveryTypeEnum.FREIGHT
+          ? (dto.freightDestination ? `Flete - ${dto.freightDestination}` : 'Flete Externo')
+          : baseDeliveryLabel;
+
+        const vehiclePlate = deliveryType === DeliveryTypeEnum.STORE_PICKUP ? 'N/A' : (deliveryType === DeliveryTypeEnum.STORE_DELIVERY ? 'TIENDA' : 'FLETE');
+        const driverName = deliveryType === DeliveryTypeEnum.STORE_PICKUP ? clientName : (deliveryType === DeliveryTypeEnum.STORE_DELIVERY ? 'Personal Tienda' : 'Transporte Flete');
+
+        const effectivePaymentMethod = dto.payments && dto.payments.length > 0
+          ? dto.payments.map((p) => p.paymentMethod).filter(Boolean).join(', ')
+          : (dto.paymentMethod || 'CASH_USD');
+
+        const totalVes = Number((totalAmountUsd * exchangeRate).toFixed(2));
+        const commercialDoc = new CommercialDocument();
+        Object.assign(commercialDoc, {
+          tenant_id: tenantId,
+          document_type: CommercialDocumentType.DELIVERY_NOTE,
+          document_number: invoiceNumber,
+          source_document_id: undefined,
+          client_id: dto.clientId || undefined,
+          client_name: clientName,
+          client_tax_id: clientTaxId,
+          status: DocumentStatus.DELIVERED,
+          issue_date: new Date().toISOString().split('T')[0],
+          delivery_date: new Date().toISOString().split('T')[0],
+          payment_method: effectivePaymentMethod,
+          subtotal_usd: subtotalUsd,
+          tax_usd: Number(taxAmountUsd.toFixed(2)),
+          total_usd: totalAmountUsd,
+          exchange_rate: exchangeRate,
+          total_bs: totalVes,
+          carrier_name: carrierName,
+          driver_name: driverName,
+          vehicle_plate: vehiclePlate,
+          notes: `Nota de entrega generada desde POS. Entrega: ${deliveryLabel}`,
+          created_by_user_id: userId,
+        });
+
+        const savedDoc = await manager.save(CommercialDocument, commercialDoc);
+
+        for (const item of dto.items) {
+          const prod = productMap.get(item.productId)!;
+          const lineTotal = Number((prod.price_usd * item.quantity).toFixed(2));
+          const itemTaxRate = prod.tax_rate !== undefined ? Number(prod.tax_rate) : 16;
+          const lineTax = shouldApplyTax ? Number(((lineTotal * itemTaxRate) / 100).toFixed(2)) : 0;
+          const docItem = new CommercialDocumentItem();
+          Object.assign(docItem, {
+            document_id: savedDoc.id,
+            product_id: item.productId,
+            product_name: prod.name,
+            sku: prod.sku || undefined,
+            unit_price_usd: prod.price_usd,
+            quantity: item.quantity,
+            subtotal_usd: lineTotal,
+            tax_usd: lineTax,
+            total_usd: Number((lineTotal + lineTax).toFixed(2)),
+          });
+          await manager.save(CommercialDocumentItem, docItem);
+        }
       }
 
       return {

@@ -179,5 +179,43 @@ export class CreateSaleDto {
   @ValidateNested()
   @Type(() => SaleChangeDto)
   change?: SaleChangeDto;
+
+  @ApiProperty({
+    description: 'Tipo de documento a emitir en la venta: INVOICE (Factura Fiscal) o DELIVERY_NOTE (Nota de Entrega)',
+    enum: ['INVOICE', 'DELIVERY_NOTE'],
+    default: 'INVOICE',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  documentType?: 'INVOICE' | 'DELIVERY_NOTE';
+
+  @ApiProperty({
+    description: 'Indica si se aplica el impuesto (IVA) al total de la venta. Por defecto true.',
+    example: true,
+    required: false,
+    default: true,
+  })
+  @IsOptional()
+  applyTax?: boolean;
+
+  @ApiProperty({
+    description: 'Modalidad de entrega de los productos',
+    enum: ['STORE_PICKUP', 'STORE_DELIVERY', 'FREIGHT'],
+    default: 'STORE_PICKUP',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  deliveryType?: 'STORE_PICKUP' | 'STORE_DELIVERY' | 'FREIGHT';
+
+  @ApiProperty({
+    description: 'Destino o dirección de envío en caso de flete (opcional)',
+    example: 'Av. Las Américas, Galpón 4, Valencia',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  freightDestination?: string;
 }
 
