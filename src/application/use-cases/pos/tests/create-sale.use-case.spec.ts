@@ -270,5 +270,52 @@ describe('CreateSaleUseCase', () => {
     // Subtotal 20 + 16% (3.2) = 23.20
     expect(result.totalAmountUsd).toBe(23.2);
   });
+
+  it('should process change and freight delivery type correctly', async () => {
+    const dto = {
+      documentType: 'DELIVERY_NOTE' as const,
+      applyTax: false,
+      deliveryType: 'FREIGHT' as const,
+      freightDestination: 'Terminal de Carga Maracay',
+      items: [{ productId: productId1, quantity: 1 }],
+      exchangeRateApplied: 50,
+      payments: [
+        {
+          paymentMethod: 'CASH_USD',
+          amountOriginal: 20,
+          currency: 'USD',
+        },
+      ],
+      change: {
+        amountOriginal: 250, // 5 USD change in VES (5 * 50)
+        currency: 'VES',
+      },
+    };
+
+    const tenant = Object.assign(new Tenant(), { id: tenantId, settings: { allow_negative_stock: false } });
+    tenantRepo.findById.mockResolvedValue(tenant);
+    productRepo.findByIds.mockResolvedValue([new Product({ id: productId1, price_usd: 15, cost_usd: 10 } as any)]);
+
+    const stockMap = new Map<string, number>();
+    stockMap.set(productId1, 5);
+    stockMoveRepo.getCurrentStocks.mockResolvedValue(stockMap);
+    mockManager.count = jest.fn().mockResolvedValue(0);
+
+    const result = await useCase.execute(tenantId, { id: userId, role: 'OWNER', permissions: [] }, dto);
+    expect(result.totalAmountUsd).toBe(15);
+
+    // Verify CommercialDocument has freight destination notes
+    const savedCalls = mockManager.save.mock.calls;
+    const commercialDocCall = savedCalls.find((call: any[]) => call[0]?.name === 'CommercialDocument' || call[1]?.document_type === 'DELIVERY_NOTE');
+    expect(commercialDocCall).toBeDefined();
+    expect(commercialDocCall[1].notes).toContain('Entrega: Por Flete');
+    expect(commercialDocCall[1].notes).toContain('Destino: Terminal de Carga Maracay');
+
+    // Verify Change payment was saved with negative amount
+    const changeCall = savedCalls.find((call: any[]) => call[1]?.payment_method === 'CHANGE_VES');
+    expect(changeCall).toBeDefined();
+    expect(changeCall[1].amount_original).toBe(-250);
+    expect(changeCall[1].amount_usd).toBe(-5);
+  });
 });
 
