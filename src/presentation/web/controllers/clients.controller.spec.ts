@@ -83,4 +83,27 @@ describe('ClientsController (Unit & Integration Tests)', () => {
       expect(res).toEqual({ message: 'Client successfully deactivated' });
     });
   });
+
+  describe('POST /clients/bulk', () => {
+    it('should bulk create clients and report duplicates', async () => {
+      mockClientRepo.findByTaxId
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'existing', tax_id: 'J-11111111-1' });
+
+      const payload = [
+        { name: 'Cliente Valido', tax_id: 'J-22222222-2' },
+        { name: 'Cliente Duplicado', tax_id: 'J-11111111-1' }
+      ];
+
+      const res = await controller.bulkCreate(validTenantId, payload as any, mockReq);
+      expect(res.totalProcessed).toBe(2);
+      expect(res.insertedCount).toBe(1);
+      expect(res.errors.length).toBe(1);
+      expect(res.errors[0].tax_id).toBe('J-11111111-1');
+    });
+
+    it('should throw BadRequestException if payload is empty', async () => {
+      await expect(controller.bulkCreate(validTenantId, [], mockReq)).rejects.toThrow(BadRequestException);
+    });
+  });
 });
