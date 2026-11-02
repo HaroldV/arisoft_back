@@ -22,3 +22,6 @@ logs/
 # OS files
 .DS_Store
 Thumbs.db
+
+# WhatsApp local auth sessions
+whatsapp_sessions/
