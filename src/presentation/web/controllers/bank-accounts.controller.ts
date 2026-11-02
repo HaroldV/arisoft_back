@@ -1,6 +1,7 @@
 import { Controller, Post, Get, Put, Delete, Body, Param, Headers, UseGuards, Req, ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiHeader, ApiBearerAuth } from '@nestjs/swagger';
 import { isUUID, IsUUID, IsNotEmpty, IsOptional, IsString, IsNumber, Min, IsEnum } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { BankAccountRepository } from '../../../infrastructure/persistence/typeorm/repositories/bank-account.repository';
 import { BankAccount } from '../../../domain/entities/bank-account.entity';
 import { BankMovement } from '../../../domain/entities/bank-movement.entity';
@@ -23,6 +24,13 @@ export class CreateBankAccountDto {
   @IsString()
   name: string;
 
+  @Transform(({ value, obj }) => {
+    if (value && typeof value === 'string' && value.trim().length > 0) return value.trim();
+    if (obj?.account_type === 'EFECTIVO') return 'Caja de Efectivo';
+    if (obj?.account_type === 'ZELLE') return 'Zelle';
+    if (obj?.account_type === 'BINANCE') return 'Binance';
+    return value;
+  })
   @IsNotEmpty()
   @IsString()
   bank_name: string;
@@ -157,7 +165,7 @@ export class BankAccountsController {
     const account = new BankAccount();
     account.tenant_id = tenantId;
     account.name = dto.name;
-    account.bank_name = dto.bank_name;
+    account.bank_name = dto.bank_name || (dto.account_type === 'EFECTIVO' ? 'Caja de Efectivo' : dto.bank_name);
     account.account_number = dto.account_number;
     account.account_type = dto.account_type;
     account.currency = dto.currency;
