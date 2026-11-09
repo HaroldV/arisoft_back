@@ -25,11 +25,16 @@ export class CommercialDocumentRepository {
     tenantId: string,
     type: CommercialDocumentType,
     search?: string,
+    userId?: string,
   ): Promise<CommercialDocument[]> {
     const qb = this.repository.createQueryBuilder('d')
       .leftJoinAndSelect('d.items', 'items')
       .where('d.tenant_id = :tenantId', { tenantId })
       .andWhere('d.document_type = :type', { type });
+
+    if (userId) {
+      qb.andWhere('d.created_by_user_id = :userId', { userId });
+    }
 
     if (search) {
       qb.andWhere(

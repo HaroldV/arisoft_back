@@ -14,6 +14,7 @@ export { ExchangeRateHistory } from './exchange-rate-history.entity';
 export { FiscalAuditLog } from './fiscal-audit-log.entity';
 export { PasswordResetToken } from './password-reset-token.entity';
 export { ProductBatch } from './product-batch.entity';
+export { ProductComponent } from './product-component.entity';
 export { ProductCostHistory } from './product-cost-history.entity';
 export { Product } from './product.entity';
 export { Provider } from './provider.entity';
@@ -58,6 +59,7 @@ import { ExchangeRateHistory } from './exchange-rate-history.entity';
 import { FiscalAuditLog } from './fiscal-audit-log.entity';
 import { PasswordResetToken } from './password-reset-token.entity';
 import { ProductBatch } from './product-batch.entity';
+import { ProductComponent } from './product-component.entity';
 import { ProductCostHistory } from './product-cost-history.entity';
 import { Product } from './product.entity';
 import { Provider } from './provider.entity';
@@ -103,6 +105,7 @@ export const ALL_ENTITIES = [
   FiscalAuditLog,
   PasswordResetToken,
   ProductBatch,
+  ProductComponent,
   ProductCostHistory,
   Product,
   Provider,

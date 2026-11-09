@@ -46,6 +46,20 @@ describe('InventoryController', () => {
       generateDailySnapshot: jest.fn(),
       getValuationReport: jest.fn(),
     } as any;
+    const setProductComponentsUseCase = {
+      execute: jest.fn(),
+    } as any;
+    const disassembleBundleUseCase = {
+      execute: jest.fn(),
+    } as any;
+    const getParentBundlesUseCase = {
+      execute: jest.fn(),
+    } as any;
+    const productComponentRepo = {
+      findByParentId: jest.fn(),
+      findParentBundlesForChild: jest.fn(),
+    } as any;
+
     controller = new InventoryController(
       useCase,
       registerPurchaseUseCase,
@@ -53,6 +67,10 @@ describe('InventoryController', () => {
       updateUseCase,
       deleteUseCase,
       createStockAdjustmentUseCase,
+      setProductComponentsUseCase,
+      disassembleBundleUseCase,
+      getParentBundlesUseCase,
+      productComponentRepo,
       productRepo,
       purchaseInvoiceRepo,
       purchaseFiscalNoteRepo,

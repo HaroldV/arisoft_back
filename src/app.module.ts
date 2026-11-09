@@ -153,6 +153,12 @@ import { FileUploadController } from './presentation/web/controllers/file-upload
 import { UploadImageUseCase } from './application/use-cases/file/upload-image.use-case';
 import { S3Service } from './infrastructure/storage/s3-service';
 
+import { SetProductComponentsUseCase } from './application/use-cases/inventory/set-product-components.use-case';
+import { DisassembleBundleUseCase } from './application/use-cases/inventory/disassemble-bundle.use-case';
+import { GetParentBundlesUseCase } from './application/use-cases/inventory/get-parent-bundles.use-case';
+import { ProductComponentRepository } from './infrastructure/persistence/typeorm/repositories/product-component.repository';
+import { ProductComponent } from './domain/entities/product-component.entity';
+
 import { Branch } from './domain/entities/branch.entity';
 import { BranchRepository } from './infrastructure/persistence/typeorm/repositories/branch.repository';
 import { BranchesUseCase } from './application/use-cases/branches/branches.use-case';
@@ -282,6 +288,9 @@ import { ALL_ENTITIES } from './domain/entities';
     ApproveSubscriptionPaymentUseCase,
     UploadImageUseCase,
     BranchesUseCase,
+    SetProductComponentsUseCase,
+    DisassembleBundleUseCase,
+    GetParentBundlesUseCase,
 
     // Core Services & Auth Guards
     AuthService,
@@ -305,6 +314,7 @@ import { ALL_ENTITIES } from './domain/entities';
     UserRepository,
     TenantRepository,
     ProductRepository,
+    ProductComponentRepository,
     StockMoveRepository,
     PasswordResetTokenRepository,
     RefreshTokenRepository,

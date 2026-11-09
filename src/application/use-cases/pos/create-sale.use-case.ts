@@ -333,9 +333,10 @@ export class CreateSaleUseCase {
         const vehiclePlate = deliveryType === DeliveryTypeEnum.STORE_PICKUP ? 'N/A' : (deliveryType === DeliveryTypeEnum.STORE_DELIVERY ? 'TIENDA' : 'FLETE');
         const driverName = deliveryType === DeliveryTypeEnum.STORE_PICKUP ? clientName : (deliveryType === DeliveryTypeEnum.STORE_DELIVERY ? 'Personal Tienda' : 'Transporte Flete');
 
-        const effectivePaymentMethod = dto.payments && dto.payments.length > 0
+        const rawPaymentMethods = dto.payments && dto.payments.length > 0
           ? dto.payments.map((p) => p.paymentMethod).filter(Boolean).join(', ')
           : (dto.paymentMethod || 'CASH_USD');
+        const effectivePaymentMethod = rawPaymentMethods.slice(0, 250);
 
         const totalVes = Number((totalAmountUsd * exchangeRate).toFixed(2));
         const commercialDoc = new CommercialDocument();

@@ -9,6 +9,12 @@ import { DeleteProductUseCase } from '../../../application/use-cases/inventory/d
 import { CreateProductDto } from '../../../application/use-cases/inventory/create-product.dto';
 import { UpdateProductDto } from '../../../application/use-cases/inventory/update-product.dto';
 import { RegisterPurchaseDto } from '../../../application/use-cases/inventory/register-purchase.dto';
+import { SetProductComponentsUseCase } from '../../../application/use-cases/inventory/set-product-components.use-case';
+import { DisassembleBundleUseCase } from '../../../application/use-cases/inventory/disassemble-bundle.use-case';
+import { GetParentBundlesUseCase } from '../../../application/use-cases/inventory/get-parent-bundles.use-case';
+import { SetProductComponentsDto } from '../../../application/use-cases/inventory/dto/set-product-components.dto';
+import { DisassembleBundleDto } from '../../../application/use-cases/inventory/dto/disassemble-bundle.dto';
+import { ProductComponentRepository } from '../../../infrastructure/persistence/typeorm/repositories/product-component.repository';
 import { ProductRepository } from '../../../infrastructure/persistence/typeorm/repositories/product.repository';
 import { PurchaseInvoiceRepository } from '../../../infrastructure/persistence/typeorm/repositories/purchase-invoice.repository';
 import { PurchaseFiscalNoteRepository } from '../../../infrastructure/persistence/typeorm/repositories/purchase-fiscal-note.repository';
@@ -38,6 +44,10 @@ export class InventoryController {
     private readonly updateProductUseCase: UpdateProductUseCase,
     private readonly deleteProductUseCase: DeleteProductUseCase,
     private readonly createStockAdjustmentUseCase: CreateStockAdjustmentUseCase,
+    private readonly setProductComponentsUseCase: SetProductComponentsUseCase,
+    private readonly disassembleBundleUseCase: DisassembleBundleUseCase,
+    private readonly getParentBundlesUseCase: GetParentBundlesUseCase,
+    private readonly productComponentRepo: ProductComponentRepository,
     private readonly productRepo: ProductRepository,
     private readonly purchaseInvoiceRepo: PurchaseInvoiceRepository,
     private readonly purchaseFiscalNoteRepo: PurchaseFiscalNoteRepository,
@@ -311,6 +321,79 @@ export class InventoryController {
     }
     await this.deleteProductUseCase.execute(id);
     return { message: 'Product successfully deleted' };
+  }
+
+  @Get('products/:id/components')
+  @RequireAnyModule(AppModule.INVENTORY, AppModule.POS)
+  @RequiredPermissions('inventory:view')
+  @ApiOperation({ summary: 'Get recipe/components of a compound product' })
+  @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier' })
+  async getProductComponents(
+    @Param('id') id: string,
+    @Headers('x-tenant-id') tenantId: string,
+    @Req() req: any,
+  ) {
+    const effectiveTenantId = req.user?.tenant_id || tenantId;
+    if (!effectiveTenantId || !isUUID(effectiveTenantId)) {
+      throw new BadRequestException('tenant_id must be a valid UUID');
+    }
+    return this.productComponentRepo.findByParentId(id, effectiveTenantId);
+  }
+
+  @Post('products/:id/components')
+  @RequiredModules(AppModule.INVENTORY)
+  @RequiredPermissions('inventory:write')
+  @ApiOperation({ summary: 'Define or update components for a compound product / bundle' })
+  @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier' })
+  async setProductComponents(
+    @Param('id') id: string,
+    @Headers('x-tenant-id') tenantId: string,
+    @Req() req: any,
+    @Body() dto: SetProductComponentsDto,
+  ) {
+    const effectiveTenantId = req.user?.tenant_id || tenantId;
+    if (!effectiveTenantId || !isUUID(effectiveTenantId)) {
+      throw new BadRequestException('tenant_id must be a valid UUID');
+    }
+    return this.setProductComponentsUseCase.execute(effectiveTenantId, id, dto);
+  }
+
+  @Post('products/:id/disassemble')
+  @RequireAnyModule(AppModule.INVENTORY, AppModule.POS)
+  @RequiredPermissions('inventory:write')
+  @ApiOperation({ summary: 'Disassemble a bundle / compound product into its individual units in a warehouse' })
+  @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier' })
+  async disassembleBundle(
+    @Param('id') id: string,
+    @Headers('x-tenant-id') tenantId: string,
+    @Req() req: any,
+    @Body() dto: DisassembleBundleDto,
+  ) {
+    const effectiveTenantId = req.user?.tenant_id || tenantId;
+    if (!effectiveTenantId || !isUUID(effectiveTenantId)) {
+      throw new BadRequestException('tenant_id must be a valid UUID');
+    }
+    const userId = req.user?.sub || req.user?.userId || req.user?.id;
+    return this.disassembleBundleUseCase.execute(effectiveTenantId, userId, id, dto);
+  }
+
+  @Get('products/:id/parent-bundles')
+  @RequireAnyModule(AppModule.INVENTORY, AppModule.POS)
+  @RequiredPermissions('inventory:view')
+  @ApiOperation({ summary: 'Find parent bundles that contain this child product (useful for POS unit restock)' })
+  @ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant Identifier' })
+  @ApiQuery({ name: 'warehouseId', required: false, description: 'Filter available bundle stock by warehouse' })
+  async getParentBundles(
+    @Param('id') id: string,
+    @Query('warehouseId') warehouseId: string,
+    @Headers('x-tenant-id') tenantId: string,
+    @Req() req: any,
+  ) {
+    const effectiveTenantId = req.user?.tenant_id || tenantId;
+    if (!effectiveTenantId || !isUUID(effectiveTenantId)) {
+      throw new BadRequestException('tenant_id must be a valid UUID');
+    }
+    return this.getParentBundlesUseCase.execute(effectiveTenantId, id, warehouseId);
   }
 
   @Get('purchases/notes')

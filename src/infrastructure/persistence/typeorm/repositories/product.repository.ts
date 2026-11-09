@@ -38,8 +38,8 @@ export class ProductRepository extends BaseTenantRepository<Product> {
     });
   }
 
-  async findById(id: string): Promise<Product | null> {
-    const conditions = this.enforceTenantCondition({ id });
+  async findById(id: string, tenantId?: string): Promise<Product | null> {
+    const conditions = tenantId ? { id, tenant_id: tenantId } : this.enforceTenantCondition({ id });
     return this.productRepository.findOne({ where: conditions });
   }
 
@@ -81,10 +81,10 @@ export class ProductRepository extends BaseTenantRepository<Product> {
       .createQueryBuilder('product');
 
     if (filters.warehouseId) {
-      query.innerJoin(
+      query.leftJoin(
         StockMove,
         'move',
-        'move.product_id = product.id AND move.warehouse_location_id = :warehouseId',
+        'move.product_id = product.id AND (move.warehouse_location_id = :warehouseId OR move.warehouse_location_id IS NULL)',
         { warehouseId: filters.warehouseId }
       );
     } else {
@@ -104,6 +104,7 @@ export class ProductRepository extends BaseTenantRepository<Product> {
       .addSelect('product.price_usd', 'price_usd')
       .addSelect('product.tax_rate', 'tax_rate')
       .addSelect('product.tax_type', 'tax_type')
+      .addSelect('product.product_type', 'product_type')
       .addSelect('product.is_perishable', 'is_perishable')
       .addSelect('product.has_batch_control', 'has_batch_control')
       .addSelect('product.image_url', 'image_url')
@@ -131,7 +132,7 @@ export class ProductRepository extends BaseTenantRepository<Product> {
     }
 
     query.groupBy(
-      'product.id, cat.name, creator.full_name, updater.full_name, product.tenant_id, product.sku, product.name, product.description, product.cost_usd, product.price_usd, product.tax_rate, product.tax_type, product.is_perishable, product.has_batch_control, product.image_url, product.created_by_user_id, product.updated_by_user_id, product.unit_of_measure, product.category_id, product.variations, product.advanced_fields, product.created_at, product.updated_at'
+      'product.id, cat.name, creator.full_name, updater.full_name, product.tenant_id, product.sku, product.name, product.description, product.cost_usd, product.price_usd, product.tax_rate, product.tax_type, product.product_type, product.is_perishable, product.has_batch_control, product.image_url, product.created_by_user_id, product.updated_by_user_id, product.unit_of_measure, product.category_id, product.variations, product.advanced_fields, product.created_at, product.updated_at'
     );
 
     const rawResults = await query.getRawMany();
@@ -187,6 +188,7 @@ export class ProductRepository extends BaseTenantRepository<Product> {
         price_usd: parseFloat(r.price_usd),
         tax_rate: parseFloat(r.tax_rate),
         tax_type: r.tax_type,
+        product_type: r.product_type || 'SIMPLE',
         is_perishable: r.is_perishable,
         has_batch_control: r.has_batch_control,
         image_url: r.image_url,
@@ -207,5 +209,18 @@ export class ProductRepository extends BaseTenantRepository<Product> {
         updated_at: new Date(r.updated_at),
       });
     });
+  }
+
+  async getStockForWarehouse(productId: string, warehouseId: string, tenantId?: string): Promise<number> {
+    const targetTenantId = tenantId || this.tenantId;
+    const result = await this.productRepository.manager
+      .createQueryBuilder(StockMove, 'move')
+      .select('COALESCE(SUM(move.quantity), 0)', 'stock')
+      .where('move.product_id = :productId', { productId })
+      .andWhere('(move.warehouse_location_id = :warehouseId OR move.warehouse_location_id IS NULL)', { warehouseId })
+      .andWhere('move.tenant_id = :tenantId', { tenantId: targetTenantId })
+      .getRawOne();
+
+    return parseInt(result?.stock || '0', 10);
   }
 }
