@@ -210,6 +210,15 @@ export class CreateSaleDto {
   deliveryType?: 'STORE_PICKUP' | 'STORE_DELIVERY' | 'FREIGHT';
 
   @ApiProperty({
+    description: 'ID de la cotización origen para sincronizar y convertir si la venta proviene de Ventas Comerciales',
+    example: 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33',
+    required: false,
+  })
+  @IsOptional()
+  @IsUUID()
+  quotationId?: string;
+
+  @ApiProperty({
     description: 'Destino o dirección de envío en caso de flete (opcional)',
     example: 'Av. Las Américas, Galpón 4, Valencia',
     required: false,
