@@ -333,9 +333,10 @@ export class CreateSaleUseCase {
         const vehiclePlate = deliveryType === DeliveryTypeEnum.STORE_PICKUP ? 'N/A' : (deliveryType === DeliveryTypeEnum.STORE_DELIVERY ? 'TIENDA' : 'FLETE');
         const driverName = deliveryType === DeliveryTypeEnum.STORE_PICKUP ? clientName : (deliveryType === DeliveryTypeEnum.STORE_DELIVERY ? 'Personal Tienda' : 'Transporte Flete');
 
-        const effectivePaymentMethod = dto.payments && dto.payments.length > 0
+        const rawPaymentMethods = dto.payments && dto.payments.length > 0
           ? dto.payments.map((p) => p.paymentMethod).filter(Boolean).join(', ')
           : (dto.paymentMethod || 'CASH_USD');
+        const effectivePaymentMethod = rawPaymentMethods.slice(0, 250);
 
         const totalVes = Number((totalAmountUsd * exchangeRate).toFixed(2));
         const commercialDoc = new CommercialDocument();
@@ -383,6 +384,55 @@ export class CreateSaleUseCase {
             total_usd: Number((lineTotal + lineTax).toFixed(2)),
           });
           await manager.save(CommercialDocumentItem, docItem);
+        }
+      }
+
+      // If sale originates from a quotation (e.g. Ventas Comerciales), synchronize items and update quotation status
+      if (dto.quotationId) {
+        const quotation = await manager.findOne(CommercialDocument, {
+          where: { id: dto.quotationId, tenant_id: tenantId },
+          relations: ['items'],
+        });
+
+        if (quotation) {
+          // 1. Remove previous items of the quotation
+          await manager.delete(CommercialDocumentItem, { document_id: quotation.id });
+
+          // 2. Insert new synchronized items matching the sale items
+          const updatedQuotationItems: CommercialDocumentItem[] = [];
+          for (const item of dto.items) {
+            const prod = productMap.get(item.productId)!;
+            const lineTotal = Number((prod.price_usd * item.quantity).toFixed(2));
+            const itemTaxRate = prod.tax_rate !== undefined ? Number(prod.tax_rate) : 16;
+            const lineTax = shouldApplyTax ? Number(((lineTotal * itemTaxRate) / 100).toFixed(2)) : 0;
+            const docItem = new CommercialDocumentItem();
+            Object.assign(docItem, {
+              document_id: quotation.id,
+              product_id: item.productId,
+              product_name: prod.name,
+              sku: prod.sku || undefined,
+              unit_price_usd: prod.price_usd,
+              quantity: item.quantity,
+              subtotal_usd: lineTotal,
+              tax_usd: lineTax,
+              total_usd: Number((lineTotal + lineTax).toFixed(2)),
+            });
+            updatedQuotationItems.push(docItem);
+          }
+          await manager.save(CommercialDocumentItem, updatedQuotationItems);
+
+          // 3. Update quotation status, totals and notes
+          quotation.subtotal_usd = subtotalUsd;
+          quotation.tax_usd = Number(taxAmountUsd.toFixed(2));
+          quotation.total_usd = totalAmountUsd;
+          quotation.total_bs = Number((totalAmountUsd * exchangeRate).toFixed(2));
+          quotation.exchange_rate = exchangeRate;
+          quotation.status = DocumentStatus.CONVERTED;
+          quotation.notes = quotation.notes
+            ? `${quotation.notes} | Facturada vía Venta Comercial (#${sale.invoice_number})`
+            : `Facturada vía Venta Comercial (#${sale.invoice_number})`;
+
+          await manager.save(CommercialDocument, quotation);
         }
       }
 

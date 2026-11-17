@@ -59,7 +59,7 @@ export class CommercialDocument {
   @Column({ type: 'date', nullable: true })
   delivery_date?: string;
 
-  @Column({ type: 'varchar', length: 50, nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   payment_method?: string;
 
   @Column({ type: 'decimal', precision: 14, scale: 2, default: 0.00 })

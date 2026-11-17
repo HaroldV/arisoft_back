@@ -93,6 +93,7 @@ export class BulkUploadProductsUseCase {
               price_usd: productData.priceUsd,
               tax_rate: productData.taxRate,
               tax_type: productData.taxType || 'TAXABLE',
+              product_type: productData.productType || 'SIMPLE',
               is_perishable: productData.isPerishable || false,
               has_batch_control: productData.hasBatchControl || false,
               unit_of_measure: productData.unitOfMeasure || 'unidades',

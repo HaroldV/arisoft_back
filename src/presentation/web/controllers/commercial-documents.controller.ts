@@ -36,7 +36,11 @@ export class CommercialDocumentsController {
   ) {
     this.validateTenant(tenantId, req);
     const docType = type || CommercialDocumentType.QUOTATION;
-    return this.documentRepository.findByType(tenantId, docType, search);
+    const userRole = (req.user?.role || '').toUpperCase();
+    const isOwnerOrAdmin = ['OWNER', 'SUPER_ADMIN', 'ADMIN'].includes(userRole);
+    const filterUserId = isOwnerOrAdmin ? undefined : (req.user?.sub || req.user?.userId);
+
+    return this.documentRepository.findByType(tenantId, docType, search, filterUserId);
   }
 
   @Get(':id')

@@ -187,6 +187,15 @@ export class CreateProductDto {
   @IsString()
   warehouseCode?: string;
 
+  @ApiProperty({
+    description: 'Tipo de producto: SIMPLE o COMPOUND (bulto / combo)',
+    example: 'SIMPLE',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  productType?: string;
+
   @IsOptional()
   @IsString()
   warehouseLocationId?: string;

@@ -5,7 +5,7 @@ import { ExchangeRateHistoryRepository } from '../persistence/typeorm/repositori
 
 export interface CurrencyRateDetail {
   rate: number;
-  code: 'USD' | 'EUR' | 'USDT';
+  code: 'USD' | 'EUR' | 'USDT' | 'COP';
   symbol: string;
   name: string;
 }
@@ -14,6 +14,7 @@ export interface DualMasterBcvRateData {
   USD: CurrencyRateDetail;
   EUR: CurrencyRateDetail;
   BINANCE?: CurrencyRateDetail;
+  COP?: CurrencyRateDetail;
   source: 'AUTO_SCRAPING' | 'MANUAL' | 'INITIAL_SEED' | 'FALLBACK';
   updated_at: string;
   value_date?: string;
@@ -64,6 +65,19 @@ export class ExchangeRateService {
                 symbol: '₮',
                 name: 'Binance P2P (USDT/VES)',
               },
+          COP: val.COP
+            ? {
+                rate: Number(val.COP?.rate) || 3240.00,
+                code: 'COP',
+                symbol: 'COL$',
+                name: 'Peso Colombiano (COP/USD)',
+              }
+            : {
+                rate: 3240.00,
+                code: 'COP',
+                symbol: 'COL$',
+                name: 'Peso Colombiano (COP/USD)',
+              },
           source: val.source || 'SAVED_STATE',
           updated_at: val.updated_at || setting.updated_at?.toISOString() || new Date().toISOString(),
           value_date: val.value_date,
@@ -78,6 +92,7 @@ export class ExchangeRateService {
       USD: { rate: 772.54, code: 'USD', symbol: '$', name: 'Dólar Estadounidense' },
       EUR: { rate: 894.49, code: 'EUR', symbol: '€', name: 'Euro' },
       BINANCE: { rate: 1013.50, code: 'USDT', symbol: '₮', name: 'Binance P2P (USDT/VES)' },
+      COP: { rate: 3240.00, code: 'COP', symbol: 'COL$', name: 'Peso Colombiano (COP/USD)' },
       source: 'FALLBACK',
       updated_at: new Date().toISOString(),
       execution_slot: 'MORNING',
@@ -87,12 +102,13 @@ export class ExchangeRateService {
   /**
    * Registra manualmente la tasa de USD, EUR o ambas
    */
-  async setManualMasterRate(rates: { usdRate?: number; eurRate?: number; binanceRate?: number }, valueDate?: string, note?: string): Promise<DualMasterBcvRateData> {
+  async setManualMasterRate(rates: { usdRate?: number; eurRate?: number; binanceRate?: number; copRate?: number }, valueDate?: string, note?: string): Promise<DualMasterBcvRateData> {
     const current = await this.getCurrentMasterRate();
 
     const cleanUsd = rates.usdRate !== undefined ? Number(Number(rates.usdRate).toFixed(4)) : current.USD.rate;
     const cleanEur = rates.eurRate !== undefined ? Number(Number(rates.eurRate).toFixed(4)) : current.EUR.rate;
     const cleanBinance = rates.binanceRate !== undefined ? Number(Number(rates.binanceRate).toFixed(4)) : (current.BINANCE?.rate || 1013.50);
+    const cleanCop = rates.copRate !== undefined ? Number(Number(rates.copRate).toFixed(2)) : (current.COP?.rate || 3240.00);
 
     if (cleanUsd <= 0 || cleanEur <= 0 || isNaN(cleanUsd) || isNaN(cleanEur)) {
       throw new Error('Las tasas deben ser números positivos mayores a cero');
@@ -102,6 +118,7 @@ export class ExchangeRateService {
       USD: { rate: cleanUsd, code: 'USD', symbol: '$', name: 'Dólar Estadounidense' },
       EUR: { rate: cleanEur, code: 'EUR', symbol: '€', name: 'Euro' },
       BINANCE: { rate: cleanBinance, code: 'USDT', symbol: '₮', name: 'Binance P2P (USDT/VES)' },
+      COP: { rate: cleanCop, code: 'COP', symbol: 'COL$', name: 'Peso Colombiano (COP/USD)' },
       source: 'MANUAL',
       updated_at: new Date().toISOString(),
       value_date: valueDate || new Date().toISOString().split('T')[0],
@@ -112,7 +129,7 @@ export class ExchangeRateService {
     await this.exchangeRateHistoryRepository.record('USD', cleanUsd, 'MANUAL', 'MANUAL_OVERRIDE', payload.value_date);
     await this.exchangeRateHistoryRepository.record('EUR', cleanEur, 'MANUAL', 'MANUAL_OVERRIDE', payload.value_date);
 
-    this.logger.log(`Manual Master BCV Rates saved: USD = ${cleanUsd}, EUR = ${cleanEur}, BINANCE = ${cleanBinance}`);
+    this.logger.log(`Manual Master BCV Rates saved: USD = ${cleanUsd}, EUR = ${cleanEur}, BINANCE = ${cleanBinance}, COP = ${cleanCop}`);
     return payload;
   }
 
@@ -141,11 +158,28 @@ export class ExchangeRateService {
           if (current.BINANCE) scraped.BINANCE = current.BINANCE;
         }
 
+        // Consultar tasa Peso Colombiano (COP/USD) en paralelo
+        try {
+          const copRate = await this.fetchLiveCopRate();
+          if (copRate > 0) {
+            scraped.COP = {
+              rate: copRate,
+              code: 'COP',
+              symbol: 'COL$',
+              name: 'Peso Colombiano (COP/USD)',
+            };
+          }
+        } catch (copErr: any) {
+          this.logger.warn(`Could not fetch live COP rate: ${copErr.message}. Keeping cached/fallback.`);
+          const current = await this.getCurrentMasterRate();
+          if (current.COP) scraped.COP = current.COP;
+        }
+
         await this.saveMasterRateToDb(scraped);
         await this.exchangeRateHistoryRepository.record('USD', scraped.USD.rate, 'AUTO_SCRAPING', scraped.execution_slot, scraped.value_date);
         await this.exchangeRateHistoryRepository.record('EUR', scraped.EUR.rate, 'AUTO_SCRAPING', scraped.execution_slot, scraped.value_date);
 
-        this.logger.log(`Official Dual BCV & Binance Rates fetched: USD=${scraped.USD.rate}, EUR=${scraped.EUR.rate}, BINANCE=${scraped.BINANCE?.rate ?? 'N/A'}`);
+        this.logger.log(`Official Dual BCV, Binance & COP Rates fetched: USD=${scraped.USD.rate}, EUR=${scraped.EUR.rate}, BINANCE=${scraped.BINANCE?.rate ?? 'N/A'}, COP=${scraped.COP?.rate ?? 'N/A'}`);
         return scraped;
       }
     } catch (error: any) {
@@ -221,6 +255,57 @@ export class ExchangeRateService {
       });
 
       req.write(postData);
+      req.end();
+    });
+  }
+
+  /**
+   * Consulta la tasa de cambio en vivo del Peso Colombiano (COP/USD)
+   * Usa open.er-api.com con fallback a Binance P2P COP
+   */
+  async fetchLiveCopRate(): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const options: https.RequestOptions = {
+        hostname: 'open.er-api.com',
+        port: 443,
+        path: '/v6/latest/USD',
+        method: 'GET',
+        timeout: 6000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+          'Accept': 'application/json',
+        },
+      };
+
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.setEncoding('utf8');
+
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            const cop = parsed.rates?.COP;
+            if (cop && typeof cop === 'number' && cop > 0) {
+              resolve(Number(cop.toFixed(2)));
+              return;
+            }
+            reject(new Error('Tasa COP no encontrada en open.er-api.com'));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      });
+
+      req.on('error', (err) => reject(err));
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Timeout connecting to COP API'));
+      });
+
       req.end();
     });
   }

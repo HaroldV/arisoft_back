@@ -52,6 +52,9 @@ describe('CreateSaleUseCase', () => {
 
     mockManager = {
       save: jest.fn().mockImplementation(async (entityClass, data) => ({ ...data, id: 'saved-sale-id' })),
+      findOne: jest.fn().mockResolvedValue(null),
+      delete: jest.fn().mockResolvedValue({ affected: 1 }),
+      count: jest.fn().mockResolvedValue(0),
     };
 
     mockDataSource = {
@@ -316,6 +319,53 @@ describe('CreateSaleUseCase', () => {
     expect(changeCall).toBeDefined();
     expect(changeCall[1].amount_original).toBe(-250);
     expect(changeCall[1].amount_usd).toBe(-5);
+  });
+
+  it('should synchronize items and convert quotation status when quotationId is provided', async () => {
+    const quotationId = 'd0eebc99-9c0b-4ef8-bb6d-6bb9bd380a55';
+    const dto = {
+      quotationId,
+      items: [
+        { productId: productId1, quantity: 3 }, // adjusted quantity
+      ],
+      exchangeRateApplied: 40,
+    };
+
+    const tenant = Object.assign(new Tenant(), { id: tenantId, settings: { allow_negative_stock: false } });
+    tenantRepo.findById.mockResolvedValue(tenant);
+    productRepo.findByIds.mockResolvedValue([
+      new Product({ id: productId1, name: 'Prod 1', price_usd: 10, cost_usd: 5 } as any),
+    ]);
+
+    const stockMap = new Map<string, number>();
+    stockMap.set(productId1, 10);
+    stockMoveRepo.getCurrentStocks.mockResolvedValue(stockMap);
+
+    const existingQuotation: any = {
+      id: quotationId,
+      tenant_id: tenantId,
+      status: 'SENT',
+      items: [{ id: 'item-1', product_id: productId1, quantity: 1 }],
+      notes: 'Presupuesto inicial para cliente',
+    };
+
+    mockManager.findOne.mockImplementation((entity: any) => {
+      if (entity?.name === 'CommercialDocument') {
+        return Promise.resolve(existingQuotation);
+      }
+      return Promise.resolve(null);
+    });
+
+    const result = await useCase.execute(tenantId, { id: userId, role: 'OWNER', permissions: [] }, dto);
+
+    expect(result.totalAmountUsd).toBe(30);
+    expect(mockManager.delete).toHaveBeenCalledWith(expect.anything(), { document_id: quotationId });
+
+    // Verify quotation was updated and saved with CONVERTED status
+    expect(existingQuotation.status).toBe('CONVERTED');
+    expect(existingQuotation.total_usd).toBe(30);
+    expect(existingQuotation.total_bs).toBe(1200); // 30 * 40
+    expect(existingQuotation.notes).toContain('Facturada vía Venta Comercial');
   });
 });
 

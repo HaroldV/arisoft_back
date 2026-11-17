@@ -134,6 +134,7 @@ export const PLAN_DEFAULT_PERMISSIONS: Record<SaasPlanEnum, string[]> = {
     'pos:refund',
     'sales:invoicing',
     'clients:manage',
+    'pos:shifts',
     // 2. Módulo Compras (INVENTORY_PURCHASES)
     'purchases:new',
     'purchases:invoices',
@@ -148,12 +149,10 @@ export const PLAN_DEFAULT_PERMISSIONS: Record<SaasPlanEnum, string[]> = {
     'inventory:categories',
     // 4. Módulo Cuentas (BANKS)
     'banks:accounts',
-    'banks:ledger',
     // 5. Módulo Configuración de Empresa (SETTINGS)
     'company:manage',
     'fiscal:manage',
     'users:manage',
-    'branches:manage',
   ],
   [SaasPlanEnum.COMERCIAL_PRO]: [
     'pos:create',

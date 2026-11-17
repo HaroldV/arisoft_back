@@ -87,5 +87,11 @@ jobs:
       - name: "Quality Gate 3: Unit & Integration Test Suite"
         run: npm test
 
+      - name: "Quality Gate 3.1: SaaS Plan Lifecycle & Access Matrix Gate"
+        run: |
+          echo "🔍 Validating SaaS Plan lifecycle, test accounts & tenant limits..."
+          npx jest src/infrastructure/auth/tests/saas_plan_e2e_lifecycle.spec.ts --runInBand
+          echo "✅ SaaS Plan Lifecycle & Access Matrix Gate Passed."
+
       - name: "Quality Gate 4: Production Build Gate"
         run: npm run build

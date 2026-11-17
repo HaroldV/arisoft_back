@@ -48,6 +48,9 @@ export class Product {
   @Column({ type: 'varchar', length: 20, default: 'TAXABLE' })
   tax_type: string;
 
+  @Column({ type: 'varchar', length: 30, default: 'SIMPLE' })
+  product_type: string;
+
   @Column({ type: 'boolean', default: false })
   is_perishable: boolean;
 
@@ -89,6 +92,7 @@ export class Product {
   imageUrl?: string;
   taxRate?: number;
   taxType?: string;
+  productType?: string;
   isPerishable?: boolean;
   hasBatchControl?: boolean;
 
@@ -108,6 +112,7 @@ export class Product {
       this.priceUsd = partial.price_usd !== undefined ? Number(partial.price_usd) : undefined;
       this.taxRate = partial.tax_rate !== undefined ? Number(partial.tax_rate) : undefined;
       this.taxType = partial.tax_type !== undefined ? partial.tax_type : undefined;
+      this.productType = partial.product_type !== undefined ? partial.product_type : undefined;
       this.isPerishable = partial.is_perishable !== undefined ? partial.is_perishable : undefined;
       this.hasBatchControl = partial.has_batch_control !== undefined ? partial.has_batch_control : undefined;
     }
