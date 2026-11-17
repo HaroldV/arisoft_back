@@ -11,7 +11,7 @@ export class PurchaseItem {
   @Column({ type: 'uuid' })
   product_id: string;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'numeric', precision: 12, scale: 4, default: 1 })
   quantity: number;
 
   @Column({ type: 'numeric', precision: 12, scale: 4 })

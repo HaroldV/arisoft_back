@@ -27,7 +27,7 @@ export class StockMove {
   })
   type: StockMoveType;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'numeric', precision: 12, scale: 4, default: 0 })
   quantity: number;
 
   @Column({ type: 'numeric', precision: 12, scale: 4 })
