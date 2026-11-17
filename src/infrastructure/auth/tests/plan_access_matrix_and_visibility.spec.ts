@@ -15,11 +15,19 @@ describe('SaaS Plan Access Matrix & Permission Visibility Rules', () => {
       expect(modules).not.toContain(SystemModuleEnum.REPORTS);
     });
 
-    it('Debe permitir únicamente Cuentas Bancarias en el módulo Cuentas (NO CxC, CxP ni Historial)', () => {
+    it('Debe permitir únicamente Cuentas Bancarias en el módulo Cuentas (NO Libro Mayor, CxC, CxP ni Historial)', () => {
       expect(permissions).toContain('banks:accounts');
+      expect(permissions).not.toContain('banks:ledger');
       expect(permissions).not.toContain('accounts:receivables');
       expect(permissions).not.toContain('accounts:payables');
       expect(permissions).not.toContain('accounts:history');
+    });
+
+    it('Debe restringir gestión de sucursales adicionales en Settings', () => {
+      expect(permissions).toContain('company:manage');
+      expect(permissions).toContain('fiscal:manage');
+      expect(permissions).toContain('users:manage');
+      expect(permissions).not.toContain('branches:manage');
     });
 
     it('Debe permitir compra directa pero NO órdenes de compra ni notas de recepción', () => {
@@ -30,14 +38,14 @@ describe('SaaS Plan Access Matrix & Permission Visibility Rules', () => {
       expect(permissions).not.toContain('purchases:receptions');
     });
 
-    it('Debe restringir preventa y analítica en ventas', () => {
+    it('Debe permitir POS y turnos de caja pero restringir preventa (cotizaciones, pedidos, entregas)', () => {
       expect(permissions).toContain('pos:create');
+      expect(permissions).toContain('pos:shifts');
       expect(permissions).toContain('sales:invoicing');
       expect(permissions).toContain('clients:manage');
       expect(permissions).not.toContain('sales:quotations');
       expect(permissions).not.toContain('sales:orders');
       expect(permissions).not.toContain('sales:deliveries');
-      expect(permissions).not.toContain('pos:shifts');
     });
   });
 
