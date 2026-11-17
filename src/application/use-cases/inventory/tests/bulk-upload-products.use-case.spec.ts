@@ -139,4 +139,44 @@ describe('BulkUploadProductsUseCase', () => {
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0].reason).toContain('SKU already exists');
   });
+
+  it('should accept decimal initialStock and record StockMove with decimal quantity', async () => {
+    const products = [
+      {
+        sku: 'SKU-DECIMAL',
+        name: 'Product Decimal Qty',
+        costUsd: 5.5,
+        priceUsd: 12.0,
+        taxRate: 16,
+        initialStock: 0.5,
+      },
+    ];
+
+    productRepo.findBySkus.mockResolvedValue([]);
+
+    const result = await useCase.execute(tenantId, products);
+
+    expect(result.success).toHaveLength(1);
+    expect(result.errors).toHaveLength(0);
+    expect(mockManager.save).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ quantity: 0.5 })
+    );
+  });
+
+  it('should isolate failures so that a failing row does not prevent subsequent rows from saving', async () => {
+    const products = [
+      { sku: 'SKU-FAIL', name: 'Product Fail', costUsd: 10, priceUsd: 15, taxRate: 16, initialStock: 10 },
+      { sku: 'SKU-PASS', name: 'Product Pass', costUsd: 10, priceUsd: 15, taxRate: 16, initialStock: 10 },
+    ];
+
+    productRepo.findBySkus.mockResolvedValue([new Product({ sku: 'SKU-FAIL' } as any)]);
+
+    const result = await useCase.execute(tenantId, products);
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].sku).toBe('SKU-FAIL');
+    expect(result.success).toHaveLength(1);
+    expect(result.success[0].sku).toBe('SKU-PASS');
+  });
 });

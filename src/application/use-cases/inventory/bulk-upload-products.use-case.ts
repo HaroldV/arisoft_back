@@ -35,20 +35,20 @@ export class BulkUploadProductsUseCase {
     const existingProducts = await this.productRepo.findBySkus(payloadSkus);
     const existingSkus = new Set(existingProducts.map(p => p.sku));
 
-    // 3. Process inside an atomic transaction
-    try {
-      await this.dataSource.transaction(async (manager) => {
-        for (const [index, productData] of products.entries()) {
-          try {
-            const sanitizedSku = (productData.sku || '').trim();
+    // 3. Process products with isolated transactions per product
+    // This prevents a single malformed row from aborting the entire bulk upload batch
+    for (const [index, productData] of products.entries()) {
+      try {
+        await this.dataSource.transaction(async (manager) => {
+          const sanitizedSku = (productData.sku || '').trim();
 
-            if (!sanitizedSku) {
-              throw new Error('SKU cannot be empty');
-            }
+          if (!sanitizedSku) {
+            throw new Error('SKU cannot be empty');
+          }
 
-            if (existingSkus.has(sanitizedSku)) {
-              throw new Error(`SKU already exists: ${sanitizedSku}`);
-            }
+          if (existingSkus.has(sanitizedSku)) {
+            throw new Error(`SKU already exists: ${sanitizedSku}`);
+          }
 
             // Resolve Category ID
             let resolvedCategoryId: string | null = null;
@@ -210,18 +210,16 @@ export class BulkUploadProductsUseCase {
               sku: sanitizedSku,
               productId: product.id,
             });
-          } catch (err: any) {
-            results.errors.push({
-              line: index + 1,
-              sku: productData.sku || 'N/A',
-              reason: err.message,
-            });
-          }
+            existingSkus.add(sanitizedSku);
+          });
+        } catch (err: any) {
+          results.errors.push({
+            line: index + 1,
+            sku: productData.sku || 'N/A',
+            reason: err.message,
+          });
         }
-      });
-    } catch (txError: any) {
-      throw txError;
-    }
+      }
 
     return results;
   }
