@@ -130,16 +130,52 @@ export class SaleRepository extends BaseTenantRepository<Sale> {
         'item.price_at_time_usd AS price_at_time_usd',
         'product.sku AS product_sku',
         'product.name AS product_name',
+        'product.tax_rate AS product_tax_rate',
         'move.justification AS justification',
       ])
       .where('item.sale_id = :saleId', { saleId: sale.id })
       .getRawMany();
 
+    const notes = await this.saleRepository.manager
+      .createQueryBuilder(SalesFiscalNote, 'note')
+      .select([
+        'note.id AS id',
+        'note.document_number AS document_number',
+        'note.type AS type',
+        'note.total_usd AS total_usd',
+        'note.status AS status',
+      ])
+      .where('note.original_invoice_id = :saleId AND note.status = :postedStatus', {
+        saleId: sale.id,
+        postedStatus: FiscalNoteStatusEnum.POSTED,
+      })
+      .getRawMany();
+
+    const totalCreditedUsd = notes
+      .filter(n => n.type === 'CREDIT')
+      .reduce((sum, n) => sum + parseFloat(n.total_usd || '0'), 0);
+
+    const totalAmountUsd = parseFloat(sale.total_amount_usd as any);
+    let calculatedStatus = sale.status;
+    if (totalCreditedUsd >= totalAmountUsd - FINANCIAL_CONSTANTS.MIN_BALANCE_THRESHOLD && totalAmountUsd > 0) {
+      calculatedStatus = SaleStatusEnum.ANULADA;
+    } else if (totalCreditedUsd > FINANCIAL_CONSTANTS.MIN_BALANCE_THRESHOLD || notes.some(n => n.type === 'DEBIT')) {
+      calculatedStatus = SaleStatusEnum.AJUSTADA;
+    }
+
     return {
       id: sale.id,
-      total_amount_usd: parseFloat(sale.total_amount_usd as any),
+      total_amount_usd: totalAmountUsd,
       exchange_rate_applied: parseFloat(sale.exchange_rate_applied as any),
-      status: sale.status,
+      status: calculatedStatus,
+      is_annulled: calculatedStatus === SaleStatusEnum.ANULADA,
+      total_credited_usd: totalCreditedUsd,
+      fiscal_notes: notes.map(n => ({
+        id: n.id,
+        document_number: n.document_number,
+        type: n.type,
+        total_usd: parseFloat(n.total_usd),
+      })),
       invoice_number: sale.invoice_number || null,
       control_number: sale.control_number || null,
       payment_method: sale.payment_method || null,
@@ -161,6 +197,7 @@ export class SaleRepository extends BaseTenantRepository<Sale> {
         price_at_time_usd: parseFloat(item.price_at_time_usd),
         product_sku: item.product_sku || 'N/A',
         product_name: item.product_name || 'N/A',
+        tax_rate: item.product_tax_rate !== null && item.product_tax_rate !== undefined ? parseFloat(item.product_tax_rate) : 0,
         justification: item.justification || null,
       })),
     };

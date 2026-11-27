@@ -35,6 +35,9 @@ export class BankAccount {
   @Column({ nullable: true })
   p2p_bank_code?: string;
 
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  color_theme?: string;
+
   @Column({ default: true })
   is_active: boolean;
 
