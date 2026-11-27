@@ -90,15 +90,21 @@ export class EmitSalesNoteUseCase {
         : FiscalDocType.DEBIT_NOTE;
       const numbers = await this.tenantFiscalRangeRepo.getNextRangeNumbers(noteTypeRange, manager);
 
+      // Determine if original sale was taxed or non-taxed
+      const originalSubtotal = invoiceItems.reduce((acc, it) => acc + (Number(it.quantity) * Number(it.price_at_time_usd)), 0);
+      const originalTotal = Number(sale.total_amount_usd);
+      const saleHadTax = originalTotal > (originalSubtotal + 0.01);
+
       // Calculate totals
       let subtotalUsd = 0;
       let taxAmountUsd = 0;
 
       const calculatedItems = dto.items.map(item => {
         const prod = productMap.get(item.productId);
-        const taxRate = prod ? Number(prod.tax_rate) : 16.00; // fallback to standard VAT
+        // If the original sale did not include tax, the note should not add tax
+        const effectiveTaxRate = saleHadTax ? (prod ? Number(prod.tax_rate) : 16.00) : 0;
         const baseUsd = item.quantity * item.unitPriceUsd;
-        const taxUsd = baseUsd * (taxRate / 100);
+        const taxUsd = baseUsd * (effectiveTaxRate / 100);
         const totUsd = baseUsd + taxUsd;
 
         subtotalUsd += baseUsd;
@@ -113,7 +119,7 @@ export class EmitSalesNoteUseCase {
           description: item.description || prod?.name || 'Ajuste fiscal',
           quantity: item.quantity,
           unit_price_usd: item.unitPriceUsd,
-          tax_rate: taxRate,
+          tax_rate: effectiveTaxRate,
           tax_amount_usd: taxUsd,
           total_usd: totUsd,
           subtotal_ves: baseVes,

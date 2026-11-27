@@ -39,7 +39,7 @@ describe('EmitSalesNoteUseCase', () => {
     mockManager = {
       findOne: jest.fn().mockImplementation(async (entityClass, conditions) => {
         if (entityClass === Sale) {
-          return { id: 'sale-123', tenant_id: tenantId };
+          return { id: 'sale-123', tenant_id: tenantId, total_amount_usd: 1160 };
         }
         if (entityClass === WarehouseLocation) {
           return { id: 'loc-123', tenant_id: tenantId };

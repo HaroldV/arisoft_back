@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Put, Delete, Body, Param, Headers, UseGuards, Req, ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Body, Param, Query, Headers, UseGuards, Req, ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiHeader, ApiBearerAuth } from '@nestjs/swagger';
 import { isUUID, IsUUID, IsNotEmpty, IsOptional, IsString, IsNumber, Min, IsEnum } from 'class-validator';
 import { Transform } from 'class-transformer';
@@ -62,6 +62,10 @@ export class CreateBankAccountDto {
   @IsOptional()
   @IsString()
   p2p_bank_code?: string;
+
+  @IsOptional()
+  @IsString()
+  color_theme?: string;
 }
 
 export class UpdateBankAccountDto {
@@ -96,6 +100,10 @@ export class UpdateBankAccountDto {
   @IsOptional()
   @IsString()
   p2p_bank_code?: string;
+
+  @IsOptional()
+  @IsString()
+  color_theme?: string;
 }
 
 export class AdjustBalanceDto {
@@ -173,6 +181,7 @@ export class BankAccountsController {
     account.p2p_phone = dto.p2p_phone;
     account.p2p_tax_id = dto.p2p_tax_id;
     account.p2p_bank_code = dto.p2p_bank_code;
+    account.color_theme = dto.color_theme;
 
     return this.bankAccountRepo.save(account);
   }
@@ -184,10 +193,13 @@ export class BankAccountsController {
   @ApiHeader({ name: 'x-tenant-id', required: true })
   async getMovements(
     @Headers('x-tenant-id') tenantId: string,
-    @Req() req: any,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('accountId') accountId?: string,
+    @Req() req?: any,
   ) {
     this.validateTenant(tenantId, req);
-    return this.bankAccountRepo.findMovementsWithDetails();
+    return this.bankAccountRepo.findMovementsWithDetails(accountId, startDate, endDate);
   }
 
   @Get(':id/movements')
@@ -198,13 +210,15 @@ export class BankAccountsController {
   async getAccountMovements(
     @Param('id') id: string,
     @Headers('x-tenant-id') tenantId: string,
-    @Req() req: any,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Req() req?: any,
   ) {
     this.validateTenant(tenantId, req);
     if (!id || !isUUID(id)) {
       throw new BadRequestException('ID de cuenta inválido');
     }
-    return this.bankAccountRepo.findMovementsWithDetails(id);
+    return this.bankAccountRepo.findMovementsWithDetails(id, startDate, endDate);
   }
 
   @Get('sales/:saleId')
@@ -356,6 +370,7 @@ export class BankAccountsController {
     if (dto.p2p_phone !== undefined) account.p2p_phone = dto.p2p_phone;
     if (dto.p2p_tax_id !== undefined) account.p2p_tax_id = dto.p2p_tax_id;
     if (dto.p2p_bank_code !== undefined) account.p2p_bank_code = dto.p2p_bank_code;
+    if (dto.color_theme !== undefined) account.color_theme = dto.color_theme;
 
     return this.bankAccountRepo.save(account);
   }
